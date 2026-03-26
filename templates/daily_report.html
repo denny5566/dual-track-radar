@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 680px;
+      font-family: "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC", sans-serif;
+      background: #f8f7f4;
+      color: #1a1a1a;
+    }
+
+    /* ── Header ── */
+    .header {
+      padding: 48px 56px 36px;
+      background: #f8f7f4;
+      border-bottom: 1px solid #e8e5e0;
+    }
+    .brand {
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #aaa;
+      margin-bottom: 14px;
+    }
+    .main-title {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.35;
+      color: #111;
+    }
+    .date-tag {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #bbb;
+      letter-spacing: 1px;
+    }
+
+    /* ── Focus ── */
+    .focus {
+      background: #111;
+      padding: 20px 56px;
+    }
+    .focus-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 6px;
+    }
+    .focus-text {
+      font-size: 14px;
+      color: #e8e5e0;
+      line-height: 1.55;
+    }
+
+    /* ── Two columns ── */
+    .columns {
+      display: flex;
+      background: #fff;
+      border-bottom: 1px solid #e8e5e0;
+    }
+    .col {
+      flex: 1;
+      padding: 32px 36px;
+    }
+    .col-a { border-right: 1px solid #e8e5e0; }
+
+    .source-tag {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 10px;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-a { background: #2b5ce6; }
+    .dot-b { background: #e67e2b; }
+    .source-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #bbb;
+    }
+
+    .col-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 10px;
+      line-height: 1.3;
+    }
+
+    .pill {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      padding: 3px 12px;
+      border-radius: 2px;
+      margin-bottom: 16px;
+    }
+    .pill-bull { background: #e8f5ee; color: #1a6637; }
+    .pill-bear { background: #fce8e8; color: #8b1a1a; }
+    .pill-flat { background: #f0ede8; color: #666; }
+
+    .section-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #ccc;
+      margin-bottom: 6px;
+    }
+
+    .key-level {
+      font-size: 12px;
+      color: #444;
+      padding: 8px 12px;
+      background: #f8f7f4;
+      border: 1px solid #e8e5e0;
+      border-radius: 2px;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    .points {
+      list-style: none;
+      margin-bottom: 14px;
+    }
+    .points li {
+      font-size: 12px;
+      color: #444;
+      line-height: 1.6;
+      padding: 5px 0 5px 14px;
+      position: relative;
+      border-bottom: 1px solid #f0ede8;
+    }
+    .points li:last-child { border-bottom: none; }
+    .points li::before {
+      content: "—";
+      position: absolute;
+      left: 0;
+      color: #ccc;
+      font-size: 10px;
+    }
+
+    .strategy {
+      font-size: 11px;
+      color: #666;
+      line-height: 1.6;
+      padding: 10px 12px;
+      border-left: 2px solid #ddd;
+      font-style: italic;
+    }
+    .strategy.a { border-color: #2b5ce6; }
+    .strategy.b { border-color: #e67e2b; }
+
+    /* ── Insight ── */
+    .insight {
+      padding: 24px 56px;
+      background: #f8f7f4;
+      border-bottom: 1px solid #e8e5e0;
+    }
+    .insight-label {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #bbb;
+      margin-bottom: 8px;
+    }
+    .insight-text {
+      font-size: 13px;
+      color: #333;
+      line-height: 1.7;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 18px 56px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8f7f4;
+    }
+    .footer-left { font-size: 10px; color: #ccc; letter-spacing: 1px; }
+    .footer-right { font-size: 9px; color: #d0cdc9; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="brand">雙軌財經情報雷達</div>
+    <div class="main-title">{{ data.outputs.edm_subject }}</div>
+    <div class="date-tag">{{ data.meta.date }}</div>
+  </div>
+
+  <div class="focus">
+    <div class="focus-label">Today's Focus</div>
+    <div class="focus-text">{{ data.daily_focus }}</div>
+  </div>
+
+  <div class="columns">
+
+    <div class="col col-a">
+      <div class="source-tag">
+        <span class="dot dot-a"></span>
+        <span class="source-label">來源 A｜機構法人</span>
+      </div>
+      <div class="col-name">{{ data.comparison.capital_futures.title }}</div>
+
+      {% set s = data.comparison.capital_futures.sentiment %}
+      {% if "多" in s %}<span class="pill pill-bull">{{ s }}</span>
+      {% elif "空" in s %}<span class="pill pill-bear">{{ s }}</span>
+      {% else %}<span class="pill pill-flat">{{ s }}</span>{% endif %}
+
+      <div class="section-label">關鍵點位</div>
+      <div class="key-level">{{ data.comparison.capital_futures.key_levels }}</div>
+
+      <div class="section-label">核心觀點</div>
+      <ul class="points">
+        {% for pt in data.comparison.capital_futures.main_points %}
+        <li>{{ pt }}</li>{% endfor %}
+      </ul>
+
+      <div class="strategy a">{{ data.comparison.capital_futures.strategy }}</div>
+    </div>
+
+    <div class="col col-b">
+      <div class="source-tag">
+        <span class="dot dot-b"></span>
+        <span class="source-label">來源 B｜名家觀點</span>
+      </div>
+      <div class="col-name">{{ data.comparison.yu_ting_hao.title }}</div>
+
+      {% set s2 = data.comparison.yu_ting_hao.sentiment %}
+      {% if "樂觀" in s2 %}<span class="pill pill-bull">{{ s2 }}</span>
+      {% elif "保守" in s2 %}<span class="pill pill-bear">{{ s2 }}</span>
+      {% else %}<span class="pill pill-flat">{{ s2 }}</span>{% endif %}
+
+      <div class="section-label">總經指標</div>
+      <ul class="points">
+        {% for ind in data.comparison.yu_ting_hao.macro_indicators %}
+        <li>{{ ind }}</li>{% endfor %}
+      </ul>
+
+      <div class="section-label">核心觀點</div>
+      <ul class="points">
+        {% for pt in data.comparison.yu_ting_hao.main_points %}
+        <li>{{ pt }}</li>{% endfor %}
+      </ul>
+
+      <div class="strategy b">{{ data.comparison.yu_ting_hao.strategy }}</div>
+    </div>
+
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">綜合洞察</div>
+    <div class="insight-text">{{ data.clash_or_sync }}</div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-left">#雙軌財經雷達 · #台股 · #投資分析</span>
+    <span class="footer-right">僅供參考，非投資建議</span>
+  </div>
+
+</body>
+</html>

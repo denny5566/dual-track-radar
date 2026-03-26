@@ -1,0 +1,15 @@
+# 環境變數（含 API Key，絕對不可上傳）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 輸出資料（音檔、逐字稿、圖卡）
+output/
+
+# Whisper 模型快取
+*.pt

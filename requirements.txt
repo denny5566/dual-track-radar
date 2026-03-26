@@ -1,0 +1,20 @@
+# 核心抓取與音訊
+yt-dlp>=2024.1.0
+openai-whisper>=20231117
+
+# LLM 分析
+anthropic>=0.40.0
+
+# 非同步任務
+celery>=5.3.0
+redis>=5.0.0
+
+# Email 模板
+Jinja2>=3.1.0
+
+# 社群圖文生成
+playwright>=1.40.0
+
+# 工具
+python-dotenv>=1.0.0
+requests>=2.31.0
