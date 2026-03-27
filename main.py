@@ -21,6 +21,7 @@ import argparse
 import logging
 import smtplib
 import sys
+from email.mime.application import MIMEApplication
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -86,16 +87,17 @@ def step_analyze(transcripts: dict[str, str | None]) -> dict | None:
 
 
 # ── Step 4 ──────────────────────────────────────────────────────────────────
-def step_render_cards(data: dict) -> Path:
+def step_render_cards(data: dict) -> tuple[Path, Path]:
     from social_cards import render_daily_report
-    log.info("=== Step 4：Playwright 渲染每日報告圖片 ===")
-    path = render_daily_report(data)
-    log.info("✅ 報告圖片：%s", path)
-    return path
+    log.info("=== Step 4：Playwright 渲染 EDM banner 與 PDF 報告 ===")
+    banner_path, pdf_path = render_daily_report(data)
+    log.info("✅ EDM banner：%s", banner_path)
+    log.info("✅ PDF 報告：%s", pdf_path)
+    return banner_path, pdf_path
 
 
 # ── Step 5 ──────────────────────────────────────────────────────────────────
-def step_send_email(data: dict, img_path: Path) -> None:
+def step_send_email(data: dict, banner_path: Path, pdf_path: Path) -> None:
     log.info("=== Step 5：寄送每日報告 Email ===")
 
     subject = data.get("outputs", {}).get("edm_subject", "【雙軌雷達】今日財經情報")
@@ -105,24 +107,34 @@ def step_send_email(data: dict, img_path: Path) -> None:
         log.warning("未設定收件人（EMAIL_RECIPIENTS），跳過寄信")
         return
 
-    msg = MIMEMultipart("related")
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
     msg["From"] = EMAIL_FROM
     msg["To"] = ", ".join(recipients)
 
-    html_body = f"""
-    <html><body style="margin:0;padding:20px;background:#f0f0f0;">
-    <img src="cid:daily_report"
-         style="display:block;max-width:680px;width:100%;margin:0 auto;border-radius:4px;">
+    # HTML 本文內嵌 banner 圖片
+    related = MIMEMultipart("related")
+    html_body = """\
+    <html><body style="margin:0;padding:20px;background:#0d0d0d;">
+    <img src="cid:edm_banner"
+         style="display:block;max-width:600px;width:100%;margin:0 auto;border-radius:4px;">
     </body></html>
     """
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    related.attach(MIMEText(html_body, "html", "utf-8"))
 
-    with open(img_path, "rb") as f:
+    with open(banner_path, "rb") as f:
         img = MIMEImage(f.read())
-        img.add_header("Content-ID", "<daily_report>")
-        img.add_header("Content-Disposition", "inline", filename=img_path.name)
-        msg.attach(img)
+        img.add_header("Content-ID", "<edm_banner>")
+        img.add_header("Content-Disposition", "inline", filename=banner_path.name)
+        related.attach(img)
+
+    msg.attach(related)
+
+    # PDF 附件
+    with open(pdf_path, "rb") as f:
+        pdf = MIMEApplication(f.read(), _subtype="pdf")
+        pdf.add_header("Content-Disposition", "attachment", filename=pdf_path.name)
+        msg.attach(pdf)
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
         server.ehlo()
@@ -134,8 +146,8 @@ def step_send_email(data: dict, img_path: Path) -> None:
 
 
 # ── Step 6 ──────────────────────────────────────────────────────────────────
-def step_cleanup(img_path: Path | None) -> None:
-    """刪除音檔、逐字稿、分析 JSON、報告圖片，釋放磁碟空間。"""
+def step_cleanup(banner_path: Path | None, pdf_path: Path | None) -> None:
+    """刪除音檔、逐字稿、分析 JSON、banner 與 PDF，釋放磁碟空間。"""
     from config import AUDIO_DIR, TRANSCRIPT_DIR, ANALYSIS_DIR
 
     log.info("=== Step 6：清理暫存檔案 ===")
@@ -148,10 +160,11 @@ def step_cleanup(img_path: Path | None) -> None:
                 log.info("已刪除：%s", f.name)
                 removed += 1
 
-    if img_path and img_path.exists():
-        img_path.unlink()
-        log.info("已刪除：%s", img_path.name)
-        removed += 1
+    for path in (banner_path, pdf_path):
+        if path and path.exists():
+            path.unlink()
+            log.info("已刪除：%s", path.name)
+            removed += 1
 
     log.info("清理完成，共刪除 %d 個檔案", removed)
 
@@ -181,14 +194,15 @@ def main() -> None:
         sys.exit(1)
 
     # Step 4
-    img_path: Path | None = None
+    banner_path: Path | None = None
+    pdf_path: Path | None = None
     if not args.skip_cards:
-        img_path = step_render_cards(data)
+        banner_path, pdf_path = step_render_cards(data)
 
     # Step 5
-    if not args.no_email and img_path:
-        step_send_email(data, img_path)
-        step_cleanup(img_path)
+    if not args.no_email and banner_path and pdf_path:
+        step_send_email(data, banner_path, pdf_path)
+        step_cleanup(banner_path, pdf_path)
 
     log.info("=== 管線完成 ===")
 

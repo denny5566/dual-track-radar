@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 600px;
+      height: 300px;
+      overflow: hidden;
+      font-family: "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC", sans-serif;
+      background: #111;
+      color: #fff;
+    }
+
+    .banner {
+      width: 600px;
+      height: 300px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 22px 40px;
+      border-bottom: 1px solid #222;
+    }
+
+    .brand {
+      font-size: 9px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #555;
+    }
+
+    .date {
+      font-size: 10px;
+      color: #444;
+      letter-spacing: 1px;
+    }
+
+    .hero {
+      padding: 0 40px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .hero-label {
+      font-size: 8px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 14px;
+    }
+
+    .hero-title {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.4;
+      color: #f0ede8;
+    }
+
+    .footer {
+      padding: 18px 40px;
+      border-top: 1px solid #1e1e1e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-focus {
+      font-size: 10px;
+      color: #444;
+      line-height: 1.5;
+      max-width: 460px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .footer-note {
+      font-size: 8px;
+      color: #2b2b2b;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="banner">
+
+    <div class="topbar">
+      <span class="brand">雙軌財經情報雷達</span>
+      <span class="date">{{ data.meta.date }}</span>
+    </div>
+
+    <div class="hero">
+      <div class="hero-label">Daily Briefing</div>
+      <div class="hero-title">{{ data.outputs.edm_subject }}</div>
+    </div>
+
+    <div class="footer">
+      <span class="footer-focus">{{ data.daily_focus }}</span>
+      <span class="footer-note">詳細分析見附件</span>
+    </div>
+
+  </div>
+</body>
+
+</html>

@@ -24,12 +24,14 @@ CHANNELS = {
         "url": "https://www.youtube.com/@i-view6024/streams",
         "audio_filename": "capital_latest.mp3",
         "color": "#1a56db",           # 法人藍
+        "title_keyword": "群益早安",
     },
     "yu_ting_hao": {
         "name": "游庭澔的財經皓角",
         "url": "https://www.youtube.com/@yutinghaofinance/streams",
         "audio_filename": "yu_latest.mp3",
         "color": "#d97706",           # 名家橘
+        "title_keyword": "早晨財經速解讀",
     },
 }
 
@@ -66,12 +68,14 @@ if FFMPEG_LOCATION and FFMPEG_LOCATION not in os.environ.get("PATH", ""):
 
 # ── yt-dlp 選項 ─────────────────────────────────────────────────────────────
 YTDLP_OPTS_AUDIO = {
-    "format": "bestaudio/best",
+    "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
     "postprocessors": [{
         "key": "FFmpegExtractAudio",
         "preferredcodec": "mp3",
         "preferredquality": "128",
     }],
+    "postprocessor_args": {"ffmpeg": ["-y"]},   # 強制覆蓋輸出檔
+    "overwrites": True,
     "quiet": True,
     "no_warnings": True,
     **({"ffmpeg_location": FFMPEG_LOCATION} if FFMPEG_LOCATION else {}),

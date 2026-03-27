@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import date
 
 import anthropic
@@ -87,14 +88,23 @@ def analyze(transcript_a: str, transcript_b: str, today: str | None = None) -> d
 
     log.info("送出分析請求至 %s（串流模式）...", ANTHROPIC_MODEL)
 
-    with _get_client().messages.stream(
-        model=ANTHROPIC_MODEL,
-        max_tokens=8192,
-        thinking={"type": "adaptive"},
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_msg}],
-    ) as stream:
-        final = stream.get_final_message()
+    for attempt in range(1, 6):
+        try:
+            with _get_client().messages.stream(
+                model=ANTHROPIC_MODEL,
+                max_tokens=8192,
+                thinking={"type": "adaptive"},
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_msg}],
+            ) as stream:
+                final = stream.get_final_message()
+            break
+        except anthropic.OverloadedError:
+            if attempt == 5:
+                raise
+            wait = 15 * attempt
+            log.warning("API 過載（529），%d 秒後重試（第 %d/5 次）...", wait, attempt)
+            time.sleep(wait)
 
     raw = next(
         (block.text for block in final.content if block.type == "text"),
