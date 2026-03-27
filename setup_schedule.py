@@ -1,8 +1,8 @@
 """
-設定 Windows 工作排程器，每天自動執行管線。
+設定 Windows 工作排程器，週一至週五自動執行管線。
 
 用法：
-  python setup_schedule.py              # 建立排程（每天 09:00）
+  python setup_schedule.py              # 建立排程（週一至週五 10:00）
   python setup_schedule.py --time 08:30 # 自訂時間
   python setup_schedule.py --delete     # 刪除排程
   python setup_schedule.py --status     # 查看排程狀態
@@ -28,13 +28,13 @@ def _run_ps(script: str) -> str:
     return (result.stdout + result.stderr).strip()
 
 
-def create_task(run_time: str = "09:00") -> None:
+def create_task(run_time: str = "10:00") -> None:
     script = f"""
 $action  = New-ScheduledTaskAction -Execute '{PYTHON}' -Argument '{MAIN_SCRIPT}' -WorkingDirectory '{WORK_DIR}'
-$trigger = New-ScheduledTaskTrigger -Daily -At '{run_time}'
+$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At '{run_time}'
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 2) -StartWhenAvailable $true
 Register-ScheduledTask -TaskName '{TASK_NAME}' -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
-Write-Host "排程建立成功：每天 {run_time} 自動執行"
+Write-Host "排程建立成功：週一至週五 {run_time} 自動執行"
 """
     print(_run_ps(script))
 
@@ -51,7 +51,7 @@ def show_task() -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--time",   default="09:00", help="執行時間 HH:MM（預設 09:00）")
+    parser.add_argument("--time",   default="10:00", help="執行時間 HH:MM（預設 10:00）")
     parser.add_argument("--delete", action="store_true", help="刪除排程")
     parser.add_argument("--status", action="store_true", help="查看排程狀態")
     args = parser.parse_args()
