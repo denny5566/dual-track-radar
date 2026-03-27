@@ -9,7 +9,7 @@ YouTube 直播存檔（關鍵字過濾：群益早安 / 早晨財經速解讀）
     ↓ yt-dlp 下載 mp3
 Whisper 語音轉文字
     ↓
-Claude Opus AI 分析
+Claude Opus（claude-opus-4-6）交叉分析
     ↓
 Playwright 渲染 EDM banner（600×300 PNG）+ PDF 詳細報告
     ↓
@@ -47,7 +47,7 @@ copy .env.example .env
 
 ```
 ANTHROPIC_API_KEY=你的 Claude API Key
-WHISPER_MODEL=base
+WHISPER_MODEL=large-v3
 
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -74,6 +74,7 @@ python main.py
 ```bash
 python main.py --skip-download    # 使用已有音檔，跳過下載
 python main.py --skip-transcribe  # 使用已有逐字稿，跳過轉錄
+python main.py --skip-cards       # 跳過圖片生成
 python main.py --no-email         # 不寄信（測試用，暫存檔不會被刪除）
 ```
 
