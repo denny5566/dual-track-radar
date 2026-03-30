@@ -47,7 +47,7 @@ copy .env.example .env
 
 ```
 ANTHROPIC_API_KEY=你的 Claude API Key
-WHISPER_MODEL=large-v3
+WHISPER_MODEL=base
 
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
