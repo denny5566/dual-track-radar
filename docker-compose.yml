@@ -1,0 +1,18 @@
+services:
+  radar:
+    build: .
+    # Oracle VM 上用 --env-file 注入，不寫死 key
+    env_file: .env
+    volumes:
+      # 持久化資料庫與輸出 JSON（容器重建不遺失）
+      - ./data:/app/data
+      - ./output:/app/output
+    restart: "no"   # 由 crontab 觸發，不需要自動重啟
+
+  discord-bot:
+    build: .
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    command: ["python", "discord_bot.py"]
+    restart: unless-stopped   # Bot 要常駐，異常退出後自動重啟

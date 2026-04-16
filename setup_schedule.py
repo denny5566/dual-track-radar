@@ -21,8 +21,10 @@ WORK_DIR = str(PROJECT_DIR)
 
 
 def _run_ps(script: str) -> str:
+    # 在 PowerShell 內強制使用 UTF-8 輸出，避免 Big5 亂碼
+    wrapped = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n" + script
     result = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", script],
+        ["powershell", "-NoProfile", "-Command", wrapped],
         capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
     return (result.stdout + result.stderr).strip()
@@ -32,7 +34,7 @@ def create_task(run_time: str = "10:00") -> None:
     script = f"""
 $action  = New-ScheduledTaskAction -Execute '{PYTHON}' -Argument '{MAIN_SCRIPT}' -WorkingDirectory '{WORK_DIR}'
 $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At '{run_time}'
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 2) -StartWhenAvailable $true
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 2) -StartWhenAvailable
 Register-ScheduledTask -TaskName '{TASK_NAME}' -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
 Write-Host "排程建立成功：週一至週五 {run_time} 自動執行"
 """

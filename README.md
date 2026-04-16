@@ -9,7 +9,7 @@ YouTube 直播存檔（關鍵字過濾：群益早安 / 早晨財經速解讀）
     ↓ yt-dlp 下載 mp3
 Whisper 語音轉文字
     ↓
-Claude Opus（claude-opus-4-6）交叉分析
+Claude Sonnet（claude-sonnet-4-6）交叉分析
     ↓
 Playwright 渲染 EDM banner（600×300 PNG）+ PDF 詳細報告
     ↓

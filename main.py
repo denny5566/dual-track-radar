@@ -1,18 +1,23 @@
 """
-AI 雙軌財經情報雷達 — 主管線
+AI 雙軌財經情報雷達 — 主管線（PRD v2）
 執行順序：
   1. 監控並下載今日雙頻道音檔（ThreadPoolExecutor）
-  2. Whisper 轉錄為逐字稿
-  3. Claude Opus 交叉分析，產出 JSON
-  4. Playwright 渲染每日報告圖片（YYYYMMDD.png）
-  5. 寄送圖片 Email
+  2. faster-whisper 轉錄（含 VAD 過濾 + pydub 切片）
+  2.5 逐字稿前處理（regex 清洗 + Claude Haiku 語意整理）
+  3. Claude 分析，產出結構化 JSON
+  4. SQLite 存檔 + 輸出靜態 JSON（供 Vercel 讀取）
+  5. Playwright 渲染 EDM Banner + PDF 報告
+  6. 寄送 Email
+  7. 清理暫存檔案（音檔、逐字稿、Banner、PDF）
 
 用法：
-  python main.py                        # 完整流程（含寄信）
-  python main.py --skip-download        # 跳過下載（使用已有音檔）
-  python main.py --skip-transcribe      # 跳過轉錄（使用已有逐字稿）
-  python main.py --skip-cards           # 跳過圖片生成
-  python main.py --no-email             # 不寄信
+  python main.py                          # 完整流程（含寄信）
+  python main.py --skip-download          # 跳過下載（使用已有音檔）
+  python main.py --skip-transcribe        # 跳過轉錄（使用已有逐字稿）
+  python main.py --skip-preprocess        # 跳過前處理（直接送原始逐字稿）
+  python main.py --skip-cards             # 跳過圖片生成
+  python main.py --no-email              # 不寄信
+  python main.py --no-cleanup            # 保留暫存檔案（debug 用）
 """
 
 from __future__ import annotations
@@ -28,12 +33,18 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 from config import (
+    ANALYSIS_DIR,
+    AUDIO_DIR,
+    BASE_DIR,
+    CLAUDE_MODEL,
     EMAIL_FROM,
     EMAIL_RECIPIENTS,
+    ENV,
     SMTP_HOST,
     SMTP_PASSWORD,
     SMTP_PORT,
     SMTP_USER,
+    TRANSCRIPT_DIR,
 )
 
 logging.basicConfig(
@@ -50,7 +61,7 @@ def step_download() -> dict:
     log.info("=== Step 1：監控並下載音檔 ===")
     results = run_dual_monitor()
     for key, res in results.items():
-        icon = "✅" if res["success"] else "❌"
+        icon = "[OK]" if res["success"] else "[FAIL]"
         log.info("%s %s: %s", icon, key, res.get("audio_path") or "無音檔")
     return results
 
@@ -58,47 +69,73 @@ def step_download() -> dict:
 # ── Step 2 ──────────────────────────────────────────────────────────────────
 def step_transcribe() -> dict[str, str | None]:
     from transcribe import transcribe_both
-    log.info("=== Step 2：Whisper 語音轉文字 ===")
+    log.info("=== Step 2：faster-whisper 語音轉文字（含 VAD 過濾） ===")
     transcripts = transcribe_both()
     for key, text in transcripts.items():
         chars = len(text) if text else 0
-        icon = "✅" if text else "❌"
+        icon = "[OK]" if text else "[FAIL]"
         log.info("%s %s：%d 字", icon, key, chars)
     return transcripts
 
 
+# ── Step 2.5 ────────────────────────────────────────────────────────────────
+def step_preprocess(transcripts: dict[str, str | None]) -> dict[str, str | None]:
+    from preprocess import preprocess_both
+    log.info("=== Step 2.5：逐字稿前處理（regex + Claude Haiku） ===")
+    cleaned = preprocess_both(transcripts, use_haiku=True)
+    for key, text in cleaned.items():
+        chars = len(text) if text else 0
+        icon = "[OK]" if text else "[FAIL]"
+        log.info("%s %s 清洗後：%d 字", icon, key, chars)
+    return cleaned
+
+
 # ── Step 3 ──────────────────────────────────────────────────────────────────
 def step_analyze(transcripts: dict[str, str | None]) -> dict | None:
-    from transcribe import load_transcript
+    from transcribe import load_cleaned_transcript, load_transcript
     from analyze import analyze
 
-    log.info("=== Step 3：Claude 雙軌分析 ===")
+    log.info("=== Step 3：Claude 雙軌分析（model=%s, env=%s） ===", CLAUDE_MODEL, ENV)
 
-    ta = transcripts.get("capital_futures") or load_transcript("capital_futures")
-    tb = transcripts.get("yu_ting_hao") or load_transcript("yu_ting_hao")
+    # 優先使用前處理後的清洗版；若無則 fallback 原始逐字稿
+    ta = (transcripts.get("capital_futures")
+          or load_cleaned_transcript("capital_futures")
+          or load_transcript("capital_futures"))
+    tb = (transcripts.get("yu_ting_hao")
+          or load_cleaned_transcript("yu_ting_hao")
+          or load_transcript("yu_ting_hao"))
 
     if not ta or not tb:
-        log.error("❌ 逐字稿缺失，無法進行分析")
+        log.error("[FAIL] 逐字稿缺失，無法進行分析")
         return None
 
     data = analyze(ta, tb)
-    log.info("✅ 分析完成：%s", data.get("daily_focus", ""))
+    log.info("[OK] 分析完成：%s", data.get("daily_focus", ""))
     return data
 
 
 # ── Step 4 ──────────────────────────────────────────────────────────────────
-def step_render_cards(data: dict) -> tuple[Path, Path]:
-    from social_cards import render_daily_report
-    log.info("=== Step 4：Playwright 渲染 EDM banner 與 PDF 報告 ===")
-    banner_path, pdf_path = render_daily_report(data)
-    log.info("✅ EDM banner：%s", banner_path)
-    log.info("✅ PDF 報告：%s", pdf_path)
-    return banner_path, pdf_path
+def step_save_db(data: dict) -> None:
+    from database import export_json_for_github, save_report
+    log.info("=== Step 4：SQLite 存檔 + 靜態 JSON 輸出 ===")
+    save_report(data)
+    json_path = export_json_for_github(data, BASE_DIR)
+    log.info("[OK] 靜態 JSON 已輸出（可推送至 GitHub）：%s", json_path)
 
 
 # ── Step 5 ──────────────────────────────────────────────────────────────────
+def step_render_cards(data: dict) -> tuple[Path, Path]:
+    from social_cards import render_daily_report
+    log.info("=== Step 5：Playwright 渲染 EDM Banner 與 PDF 報告 ===")
+    banner_path, pdf_path = render_daily_report(data)
+    log.info("[OK] EDM Banner：%s", banner_path)
+    log.info("[OK] PDF 報告：%s", pdf_path)
+    return banner_path, pdf_path
+
+
+# ── Step 6 ──────────────────────────────────────────────────────────────────
 def step_send_email(data: dict, banner_path: Path, pdf_path: Path) -> None:
-    log.info("=== Step 5：寄送每日報告 Email ===")
+    log.info("=== Step 6：寄送每日報告 Email ===")
 
     subject = data.get("outputs", {}).get("edm_subject", "【雙軌雷達】今日財經情報")
     recipients = [r.strip() for r in EMAIL_RECIPIENTS if r.strip()]
@@ -142,15 +179,17 @@ def step_send_email(data: dict, banner_path: Path, pdf_path: Path) -> None:
         server.login(SMTP_USER, SMTP_PASSWORD)
         server.sendmail(EMAIL_FROM, recipients, msg.as_string())
 
-    log.info("✅ Email 已寄出至 %d 位收件人", len(recipients))
+    log.info("[OK] Email 已寄出至 %d 位收件人", len(recipients))
 
 
-# ── Step 6 ──────────────────────────────────────────────────────────────────
+# ── Step 7 ──────────────────────────────────────────────────────────────────
 def step_cleanup(banner_path: Path | None, pdf_path: Path | None) -> None:
-    """刪除音檔、逐字稿、分析 JSON、banner 與 PDF，釋放磁碟空間。"""
-    from config import AUDIO_DIR, TRANSCRIPT_DIR, ANALYSIS_DIR
-
-    log.info("=== Step 6：清理暫存檔案 ===")
+    """
+    清理暫存檔案（PRD v2 § 4.3）：
+    刪除音檔、逐字稿（原始 + 清洗後）、分析 JSON、Banner 與 PDF。
+    只保留：SQLite 資料庫、靜態 JSON（data/）、執行 log。
+    """
+    log.info("=== Step 7：清理暫存檔案 ===")
     removed = 0
 
     for directory in (AUDIO_DIR, TRANSCRIPT_DIR, ANALYSIS_DIR):
@@ -162,9 +201,12 @@ def step_cleanup(banner_path: Path | None, pdf_path: Path | None) -> None:
 
     for path in (banner_path, pdf_path):
         if path and path.exists():
-            path.unlink()
-            log.info("已刪除：%s", path.name)
-            removed += 1
+            try:
+                path.unlink()
+                log.info("已刪除：%s", path.name)
+                removed += 1
+            except PermissionError:
+                log.warning("檔案被佔用，跳過刪除：%s（請手動關閉後刪除）", path.name)
 
     log.info("清理完成，共刪除 %d 個檔案", removed)
 
@@ -172,11 +214,15 @@ def step_cleanup(banner_path: Path | None, pdf_path: Path | None) -> None:
 # ── Main ─────────────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(description="AI 雙軌財經情報雷達管線")
-    parser.add_argument("--skip-download",   action="store_true", help="跳過音檔下載")
-    parser.add_argument("--skip-transcribe", action="store_true", help="跳過語音轉文字")
-    parser.add_argument("--skip-cards",      action="store_true", help="跳過圖片生成")
-    parser.add_argument("--no-email",        action="store_true", help="不寄送 Email")
+    parser.add_argument("--skip-download",    action="store_true", help="跳過音檔下載")
+    parser.add_argument("--skip-transcribe",  action="store_true", help="跳過語音轉文字")
+    parser.add_argument("--skip-preprocess",  action="store_true", help="跳過逐字稿前處理")
+    parser.add_argument("--skip-cards",       action="store_true", help="跳過圖片生成")
+    parser.add_argument("--no-email",         action="store_true", help="不寄送 Email")
+    parser.add_argument("--no-cleanup",       action="store_true", help="保留暫存檔案（debug）")
     args = parser.parse_args()
+
+    log.info("=== 雙軌財經情報雷達啟動 ===  env=%s  model=%s", ENV, CLAUDE_MODEL)
 
     # Step 1
     if not args.skip_download:
@@ -187,21 +233,32 @@ def main() -> None:
     if not args.skip_transcribe:
         transcripts = step_transcribe()
 
+    # Step 2.5
+    cleaned_transcripts: dict[str, str | None] = {}
+    if not args.skip_preprocess:
+        cleaned_transcripts = step_preprocess(transcripts)
+
     # Step 3
-    data = step_analyze(transcripts)
+    data = step_analyze(cleaned_transcripts or transcripts)
     if data is None:
         log.error("管線中止：分析失敗")
         sys.exit(1)
 
     # Step 4
+    step_save_db(data)
+
+    # Step 5
     banner_path: Path | None = None
     pdf_path: Path | None = None
     if not args.skip_cards:
         banner_path, pdf_path = step_render_cards(data)
 
-    # Step 5
+    # Step 6
     if not args.no_email and banner_path and pdf_path:
         step_send_email(data, banner_path, pdf_path)
+
+    # Step 7（無論是否寄信，都執行清理）
+    if not args.no_cleanup:
         step_cleanup(banner_path, pdf_path)
 
     log.info("=== 管線完成 ===")

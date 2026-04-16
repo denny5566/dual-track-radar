@@ -17,6 +17,9 @@ ANALYSIS_DIR = OUTPUT_DIR / "analysis"
 CARDS_DIR = OUTPUT_DIR / "cards"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
+# ── 資料庫 ──────────────────────────────────────────────────────────────────
+DB_PATH = BASE_DIR / "data" / "radar.db"
+
 # ── 監控頻道 ────────────────────────────────────────────────────────────────
 CHANNELS = {
     "capital_futures": {
@@ -35,15 +38,28 @@ CHANNELS = {
     },
 }
 
-# ── Google Gemini / LLM ──────────────────────────────────────────────────────
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")   # base / small / medium / large-v3
+# ── 環境 / 模型切換 ──────────────────────────────────────────────────────────
+# ENV=dev  → 使用 Claude Haiku（低成本，適合開發測試）
+# ENV=prod → 使用 Claude Sonnet（高品質，正式環境）
+ENV = os.getenv("ENV", "dev")
+CLAUDE_HAIKU_MODEL  = "claude-haiku-4-5-20251001"
+CLAUDE_SONNET_MODEL = "claude-sonnet-4-6"
+CLAUDE_MODEL = CLAUDE_HAIKU_MODEL if ENV == "dev" else CLAUDE_SONNET_MODEL
 
-# ── Celery / Redis ──────────────────────────────────────────────────────────
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-CELERY_BROKER_URL = REDIS_URL
-CELERY_RESULT_BACKEND = REDIS_URL
+# ── Groq Whisper API ────────────────────────────────────────────────────────
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+# auto   → 優先嘗試 Groq，失敗時 fallback 到 faster-whisper
+# groq   → 強制使用 Groq API
+# local  → 強制使用 faster-whisper（本地）
+WHISPER_BACKEND = os.getenv("WHISPER_BACKEND", "auto")
+
+# ── faster-whisper（本地）────────────────────────────────────────────────────
+# 模型尺寸：tiny / base / small / medium / large-v3
+WHISPER_MODEL     = os.getenv("WHISPER_MODEL", "base")
+WHISPER_DEVICE    = os.getenv("WHISPER_DEVICE", "cpu")    # cpu / cuda
+WHISPER_COMPUTE   = os.getenv("WHISPER_COMPUTE", "int8")  # int8 / float16 / float32
+# 音訊切片長度（毫秒），超過此長度的音檔會先切片再轉錄
+CHUNK_DURATION_MS = int(os.getenv("CHUNK_DURATION_MS", 10 * 60 * 1000))  # 預設 10 分鐘
 
 # ── Email (SMTP) ────────────────────────────────────────────────────────────
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")

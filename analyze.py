@@ -1,6 +1,11 @@
 """
-Step 2 — LLM 雙軌觀點分析
-將兩段逐字稿送入 Claude（claude-opus-4-6），輸出符合專案 JSON Schema 的結構化分析報告。
+Step 3 — LLM 雙軌觀點分析
+將兩段（已前處理的）逐字稿送入 Claude，輸出符合專案 JSON Schema 的結構化分析報告。
+
+模型切換（PRD v2 § 3.3）：
+  ENV=dev  → claude-haiku-4-5（低成本，開發測試用）
+  ENV=prod → claude-sonnet-4-6（高品質，正式環境）
+  Sonnet 模式額外啟用 extended thinking 以提升分析深度。
 """
 
 from __future__ import annotations
@@ -12,11 +17,9 @@ from datetime import date
 
 import anthropic
 
-from config import ANALYSIS_DIR
+from config import ANALYSIS_DIR, CLAUDE_MODEL, CLAUDE_SONNET_MODEL, ENV
 
 log = logging.getLogger(__name__)
-
-ANTHROPIC_MODEL = "claude-opus-4-6"
 
 _client: anthropic.Anthropic | None = None
 
@@ -24,7 +27,7 @@ _client: anthropic.Anthropic | None = None
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic()   # 自動讀取 ANTHROPIC_API_KEY 環境變數
+        _client = anthropic.Anthropic()
     return _client
 
 
@@ -77,7 +80,10 @@ Constraint:
 
 def analyze(transcript_a: str, transcript_b: str, today: str | None = None) -> dict:
     """
-    送入雙軌逐字稿，以串流方式呼叫 Claude Opus，回傳結構化 dict。
+    送入雙軌逐字稿，呼叫 Claude 分析，回傳結構化 dict。
+
+    - prod 環境（Sonnet）：啟用 extended thinking（adaptive），提升分析深度
+    - dev 環境（Haiku）：標準模式，快速低成本
     """
     today = today or date.today().strftime("%Y-%m-%d")
     user_msg = (
@@ -86,18 +92,33 @@ def analyze(transcript_a: str, transcript_b: str, today: str | None = None) -> d
         f"逐字稿 B（游庭澔財經皓角）：\n{transcript_b}"
     )
 
-    log.info("送出分析請求至 %s（串流模式）...", ANTHROPIC_MODEL)
+    is_prod = (ENV == "prod" or CLAUDE_MODEL == CLAUDE_SONNET_MODEL)
+    log.info(
+        "送出分析請求至 %s（環境：%s，thinking：%s）...",
+        CLAUDE_MODEL, ENV, "啟用" if is_prod else "停用",
+    )
 
     for attempt in range(1, 6):
         try:
-            with _get_client().messages.stream(
-                model=ANTHROPIC_MODEL,
-                max_tokens=8192,
-                thinking={"type": "adaptive"},
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_msg}],
-            ) as stream:
-                final = stream.get_final_message()
+            if is_prod:
+                # Sonnet：啟用 extended thinking
+                with _get_client().messages.stream(
+                    model=CLAUDE_MODEL,
+                    max_tokens=8192,
+                    thinking={"type": "adaptive"},
+                    system=SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": user_msg}],
+                ) as stream:
+                    final = stream.get_final_message()
+            else:
+                # Haiku：標準串流（不支援 extended thinking）
+                with _get_client().messages.stream(
+                    model=CLAUDE_MODEL,
+                    max_tokens=4096,
+                    system=SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": user_msg}],
+                ) as stream:
+                    final = stream.get_final_message()
             break
         except anthropic.OverloadedError:
             if attempt == 5:
@@ -138,13 +159,14 @@ def load_latest_analysis() -> dict | None:
 
 
 if __name__ == "__main__":
-    from transcribe import load_transcript
+    from transcribe import load_cleaned_transcript, load_transcript
 
-    ta = load_transcript("capital_futures")
-    tb = load_transcript("yu_ting_hao")
+    # 優先使用前處理後的清洗版本
+    ta = load_cleaned_transcript("capital_futures") or load_transcript("capital_futures")
+    tb = load_cleaned_transcript("yu_ting_hao") or load_transcript("yu_ting_hao")
 
     if not ta or not tb:
-        print("❌ 逐字稿不存在，請先執行 transcribe.py")
+        print("[FAIL] 逐字稿不存在，請先執行 transcribe.py 與 preprocess.py")
     else:
         data = analyze(ta, tb)
         print(json.dumps(data, ensure_ascii=False, indent=2))

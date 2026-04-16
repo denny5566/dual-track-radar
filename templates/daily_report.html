@@ -15,8 +15,10 @@
       margin: 0;
     }
 
-    body {
+    html, body {
       width: 210mm;
+      height: 297mm;
+      overflow: hidden;
       font-family: "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC", sans-serif;
       background: #f8f7f4;
       color: #1a1a1a;
@@ -24,29 +26,29 @@
 
     /* ── Header ── */
     .header {
-      padding: 48px 56px 36px;
+      padding: 28px 48px 20px;
       background: #f8f7f4;
       border-bottom: 1px solid #e8e5e0;
     }
 
     .brand {
-      font-size: 10px;
+      font-size: 9px;
       letter-spacing: 3px;
       text-transform: uppercase;
       color: #aaa;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
 
     .main-title {
-      font-size: 26px;
+      font-size: 22px;
       font-weight: 700;
-      line-height: 1.35;
+      line-height: 1.3;
       color: #111;
     }
 
     .date-tag {
-      margin-top: 10px;
-      font-size: 12px;
+      margin-top: 6px;
+      font-size: 11px;
       color: #bbb;
       letter-spacing: 1px;
     }
@@ -54,21 +56,21 @@
     /* ── Focus ── */
     .focus {
       background: #111;
-      padding: 20px 56px;
+      padding: 14px 48px;
     }
 
     .focus-label {
-      font-size: 9px;
+      font-size: 8px;
       letter-spacing: 2px;
       text-transform: uppercase;
       color: #666;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
 
     .focus-text {
-      font-size: 14px;
+      font-size: 12px;
       color: #e8e5e0;
-      line-height: 1.55;
+      line-height: 1.5;
     }
 
     /* ── Two columns ── */
@@ -80,7 +82,7 @@
 
     .col {
       flex: 1;
-      padding: 32px 36px;
+      padding: 20px 28px;
     }
 
     .col-a {
@@ -90,151 +92,128 @@
     .source-tag {
       display: flex;
       align-items: center;
-      gap: 7px;
-      margin-bottom: 10px;
+      gap: 6px;
+      margin-bottom: 8px;
     }
 
     .dot {
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       flex-shrink: 0;
     }
 
-    .dot-a {
-      background: #2b5ce6;
-    }
-
-    .dot-b {
-      background: #e67e2b;
-    }
+    .dot-a { background: #2b5ce6; }
+    .dot-b { background: #e67e2b; }
 
     .source-label {
-      font-size: 9px;
+      font-size: 8px;
       letter-spacing: 2px;
       text-transform: uppercase;
       color: #bbb;
     }
 
     .col-name {
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 700;
       color: #111;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       line-height: 1.3;
     }
 
     .pill {
       display: inline-block;
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 600;
       letter-spacing: 1px;
-      padding: 3px 12px;
+      padding: 2px 10px;
       border-radius: 2px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
-    .pill-bull {
-      background: #e8f5ee;
-      color: #1a6637;
-    }
-
-    .pill-bear {
-      background: #fce8e8;
-      color: #8b1a1a;
-    }
-
-    .pill-flat {
-      background: #f0ede8;
-      color: #666;
-    }
+    .pill-bull { background: #e8f5ee; color: #1a6637; }
+    .pill-bear { background: #fce8e8; color: #8b1a1a; }
+    .pill-flat { background: #f0ede8; color: #666; }
 
     .section-label {
-      font-size: 9px;
+      font-size: 8px;
       letter-spacing: 2px;
       text-transform: uppercase;
       color: #ccc;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
 
     .key-level {
-      font-size: 12px;
+      font-size: 11px;
       color: #444;
-      padding: 8px 12px;
+      padding: 6px 10px;
       background: #f8f7f4;
       border: 1px solid #e8e5e0;
       border-radius: 2px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
       line-height: 1.5;
     }
 
     .points {
       list-style: none;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
 
     .points li {
-      font-size: 12px;
+      font-size: 11px;
       color: #444;
-      line-height: 1.6;
-      padding: 5px 0 5px 14px;
+      line-height: 1.55;
+      padding: 4px 0 4px 12px;
       position: relative;
       border-bottom: 1px solid #f0ede8;
     }
 
-    .points li:last-child {
-      border-bottom: none;
-    }
+    .points li:last-child { border-bottom: none; }
 
     .points li::before {
       content: "—";
       position: absolute;
       left: 0;
       color: #ccc;
-      font-size: 10px;
+      font-size: 9px;
     }
 
     .strategy {
-      font-size: 11px;
+      font-size: 10px;
       color: #666;
-      line-height: 1.6;
-      padding: 10px 12px;
+      line-height: 1.55;
+      padding: 8px 10px;
       border-left: 2px solid #ddd;
       font-style: italic;
     }
 
-    .strategy.a {
-      border-color: #2b5ce6;
-    }
-
-    .strategy.b {
-      border-color: #e67e2b;
-    }
+    .strategy.a { border-color: #2b5ce6; }
+    .strategy.b { border-color: #e67e2b; }
 
     /* ── Insight ── */
     .insight {
-      padding: 24px 56px;
+      padding: 16px 48px;
       background: #f8f7f4;
       border-bottom: 1px solid #e8e5e0;
     }
 
     .insight-label {
-      font-size: 9px;
+      font-size: 8px;
       letter-spacing: 2px;
       text-transform: uppercase;
       color: #bbb;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .insight-text {
-      font-size: 13px;
+      font-size: 11px;
       color: #333;
-      line-height: 1.7;
+      line-height: 1.65;
     }
 
     /* ── Footer ── */
     .footer {
-      padding: 18px 56px;
+      padding: 12px 48px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -242,13 +221,13 @@
     }
 
     .footer-left {
-      font-size: 10px;
+      font-size: 9px;
       color: #ccc;
       letter-spacing: 1px;
     }
 
     .footer-right {
-      font-size: 9px;
+      font-size: 8px;
       color: #d0cdc9;
     }
   </style>
@@ -272,7 +251,7 @@
     <div class="col col-a">
       <div class="source-tag">
         <span class="dot dot-a"></span>
-        <span class="source-label">來源 A｜機構法人</span>
+        <span class="source-label">來源｜法人機構</span>
       </div>
       <div class="col-name">{{ data.comparison.capital_futures.title }}</div>
 
@@ -296,7 +275,7 @@
     <div class="col col-b">
       <div class="source-tag">
         <span class="dot dot-b"></span>
-        <span class="source-label">來源 B｜名家觀點</span>
+        <span class="source-label">來源｜名家觀點</span>
       </div>
       <div class="col-name">{{ data.comparison.yu_ting_hao.title }}</div>
 
