@@ -65,6 +65,7 @@ async function loadYouTubeStats() {
     document.getElementById('yt-views').textContent = fmtNum(data.totalViews);
     document.getElementById('yt-videos').textContent = fmtNum(data.videoCount);
 
+    if (data.channelTitle) document.getElementById('yt-channel-name').textContent = data.channelTitle;
     if (data.latestVideo) {
       document.getElementById('yt-latest').innerHTML =
         `<strong>最新影片：</strong>${esc(data.latestVideo.title)}<br>` +
