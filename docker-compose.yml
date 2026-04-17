@@ -7,6 +7,9 @@ services:
       # 持久化資料庫與輸出 JSON（容器重建不遺失）
       - ./data:/app/data
       - ./output:/app/output
+      # pipeline 寫入 web/public/data，讓 web service 能即時讀到
+      - ./web/public/data:/app/web/public/data
+      - ./web/public/images:/app/web/public/images
     restart: "no"   # 由 crontab 觸發，不需要自動重啟
 
   discord-bot:
@@ -16,3 +19,16 @@ services:
       - ./data:/app/data
     command: ["python", "discord_bot.py"]
     restart: unless-stopped   # Bot 要常駐，異常退出後自動重啟
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    env_file: .env
+    ports:
+      - "80:3000"
+    volumes:
+      # pipeline 每次執行後更新 data/images，web service 直接讀 volume
+      - ./web/public/data:/app/public/data
+      - ./web/public/images:/app/public/images
+    restart: unless-stopped   # 前端常駐，異常退出後自動重啟

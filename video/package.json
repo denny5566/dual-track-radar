@@ -1,0 +1,21 @@
+{
+  "name": "radar-video",
+  "version": "1.0.0",
+  "description": "雙軌財經情報雷達 — Remotion 影片模板",
+  "scripts": {
+    "start": "remotion studio",
+    "render": "remotion render RadarVideo out/video.mp4",
+    "render:vertical": "remotion render RadarVideo out/video_vertical.mp4 --props='{\"orientation\":\"vertical\"}'",
+    "render:horizontal": "remotion render RadarVideo out/video_horizontal.mp4 --props='{\"orientation\":\"horizontal\"}'"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.290",
+    "@remotion/google-fonts": "4.0.290",
+    "remotion": "4.0.290"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}

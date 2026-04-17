@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from datetime import date
 from pathlib import Path
@@ -21,6 +22,9 @@ from pathlib import Path
 from config import CLAUDE_MODEL, DB_PATH, ENV
 
 log = logging.getLogger(__name__)
+
+# web/public/data/ 的固定路徑（供 Vite dev server 和 Vercel 讀取）
+WEB_DATA_DIR = Path(__file__).parent / "web" / "public" / "data"
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -90,17 +94,73 @@ def list_reports(limit: int = 30) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def _rebuild_index(data_dir: Path) -> None:
+    """
+    從 SQLite 重建 index.json（文章目錄），供前端首頁列表使用。
+    每次 export 後自動呼叫，確保目錄與 DB 保持同步。
+    """
+    init_db()
+    with _get_conn() as conn:
+        rows = conn.execute(
+            "SELECT date, json_data FROM daily_reports ORDER BY date DESC"
+        ).fetchall()
+
+    articles = []
+    for row in rows:
+        try:
+            d = json.loads(row["json_data"])
+            date_str = row["date"]
+            raw_subj = (d.get("outputs") or {}).get("edm_subject", "")
+            title = (
+                ((d.get("article") or {}).get("title"))
+                or re.sub(r"^【.*?】\s*", "", raw_subj).strip()
+                or f"{date_str} 財經速報"
+            )
+            articles.append({
+                "date":        date_str,
+                "date_key":    date_str.replace("-", ""),
+                "title":       title,
+                "tags":        ((d.get("article") or {}).get("tags") or ["#台股", "#美股"])[:4],
+                "daily_focus": (d.get("daily_focus") or "")[:100],
+            })
+        except Exception:
+            continue
+
+    index_path = data_dir / "index.json"
+    index_path.write_text(
+        json.dumps({"articles": articles}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    log.info("文章目錄已更新：%s（共 %d 篇）", index_path, len(articles))
+
+
 def export_json_for_github(data: dict, output_dir: Path) -> Path:
     """
-    將分析報告輸出為靜態 JSON 檔（供 Vercel 網站讀取）。
-    檔案命名：YYYYMMDD.json，存放於 output_dir / data / 下。
+    將分析報告輸出為靜態 JSON 檔：
+    - output_dir/data/YYYYMMDD.json  （git 存檔，供備份）
+    - web/public/data/YYYYMMDD.json  （前端讀取）
+    - web/public/data/latest.json    （前端優先讀取）
+    - web/public/data/index.json     （首頁文章列表）
     """
     report_date = data.get("meta", {}).get("date", date.today().strftime("%Y-%m-%d"))
-    data_dir = output_dir / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    out_path = data_dir / f"{report_date.replace('-', '')}.json"
-    out_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    log.info("GitHub 靜態 JSON 已輸出：%s", out_path)
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
+
+    # 1. output_dir/data/（原始備份）
+    backup_dir = output_dir / "data"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    out_path = backup_dir / f"{report_date.replace('-', '')}.json"
+    out_path.write_text(payload, encoding="utf-8")
+    log.info("備份 JSON 已輸出：%s", out_path)
+
+    # 2. web/public/data/（前端靜態資源）
+    WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    (WEB_DATA_DIR / f"{report_date.replace('-', '')}.json").write_text(payload, encoding="utf-8")
+    (WEB_DATA_DIR / "latest.json").write_text(payload, encoding="utf-8")
+    log.info("web/public/data/ 已更新（%s + latest.json）", report_date)
+
+    # 3. 重建文章目錄
+    _rebuild_index(WEB_DATA_DIR)
+
     return out_path
 
 

@@ -123,6 +123,48 @@ def step_save_db(data: dict) -> None:
     log.info("[OK] 靜態 JSON 已輸出（可推送至 GitHub）：%s", json_path)
 
 
+# ── Step 4.5 ─────────────────────────────────────────────────────────────────
+def step_generate_video_assets(data: dict) -> None:
+    """更新 Remotion 資料檔 + 生成旁白音檔。"""
+    import json
+    from generate_audio import run as generate_audio
+
+    log.info("=== Step 4.5：更新影片資料 + 生成 Edge TTS 旁白 ===")
+
+    # 更新 video/src/data/sample.json（供 Remotion 讀取最新分析結果）
+    video_data_path = BASE_DIR / "video" / "src" / "data" / "sample.json"
+    if video_data_path.exists():
+        import json as _json
+        existing = _json.loads(video_data_path.read_text(encoding="utf-8"))
+        # 保留原有 image_url（圖片不隨每次分析重置）
+        existing_urls = {
+            item.get("headline", ""): item.get("image_url")
+            for item in existing.get("top5_news", [])
+        }
+        news = []
+        for i, item in enumerate(data.get("top5_news", [])[:5]):
+            news.append({
+                "headline":  item.get("headline", ""),
+                "summary":   item.get("summary", ""),
+                "image_url": existing_urls.get(item.get("headline", ""),
+                             f"news_{i+1:02d}.jpg"),
+            })
+        merged = {**data, "top5_news": news}
+        video_data_path.write_text(
+            json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        log.info("[OK] video/src/data/sample.json 已更新")
+
+    # 生成旁白音檔
+    generate_audio(data)
+    log.info("[OK] 旁白音檔已生成至 video/public/audio/")
+
+    # 生成場景配圖（依當日文字向 Pexels 搜尋）
+    from generate_assets import run as generate_assets
+    generate_assets(data, backend="pexels")
+    log.info("[OK] 場景配圖已生成至 video/public/")
+
+
 # ── Step 5 ──────────────────────────────────────────────────────────────────
 def step_render_cards(data: dict) -> tuple[Path, Path]:
     from social_cards import render_daily_report
@@ -217,7 +259,9 @@ def main() -> None:
     parser.add_argument("--skip-download",    action="store_true", help="跳過音檔下載")
     parser.add_argument("--skip-transcribe",  action="store_true", help="跳過語音轉文字")
     parser.add_argument("--skip-preprocess",  action="store_true", help="跳過逐字稿前處理")
+    parser.add_argument("--skip-article",     action="store_true", help="跳過文章生成")
     parser.add_argument("--skip-cards",       action="store_true", help="跳過圖片生成")
+    parser.add_argument("--skip-audio",       action="store_true", help="跳過旁白音檔生成")
     parser.add_argument("--no-email",         action="store_true", help="不寄送 Email")
     parser.add_argument("--no-cleanup",       action="store_true", help="保留暫存檔案（debug）")
     args = parser.parse_args()
@@ -238,14 +282,38 @@ def main() -> None:
     if not args.skip_preprocess:
         cleaned_transcripts = step_preprocess(transcripts)
 
-    # Step 3
     data = step_analyze(cleaned_transcripts or transcripts)
     if data is None:
         log.error("管線中止：分析失敗")
         sys.exit(1)
 
+    # Step 3.5
+    if not args.skip_article:
+        log.info("=== Step 3.5：生成新聞風格文章 ===")
+        from generate_article import generate_article
+        from transcribe import load_cleaned_transcript, load_transcript
+        
+        ta = ((cleaned_transcripts.get("capital_futures") or transcripts.get("capital_futures"))
+              or load_cleaned_transcript("capital_futures") or load_transcript("capital_futures"))
+        tb = ((cleaned_transcripts.get("yu_ting_hao") or transcripts.get("yu_ting_hao"))
+              or load_cleaned_transcript("yu_ting_hao") or load_transcript("yu_ting_hao"))
+              
+        if ta and tb:
+            article_data = generate_article(ta, tb)
+            if "article" in article_data:
+                data["article"] = article_data["article"]
+                log.info("[OK] 新聞文章生成成功")
+            else:
+                log.warning("[WARN] 新聞文章生成未返回預期格式")
+        else:
+             log.warning("[WARN] 缺少逐字稿，跳過文章生成")
+
     # Step 4
     step_save_db(data)
+
+    # Step 4.5
+    if not args.skip_audio:
+        step_generate_video_assets(data)
 
     # Step 5
     banner_path: Path | None = None

@@ -38,18 +38,27 @@ Task: 我會提供兩段逐字稿。請進行「觀點交叉分析」並輸出�
 Analysis Guidelines:
 - 處理「群益期貨」時，專注於技術面、盤勢壓力、短線期貨邏輯。
 - 處理「財經皓角」時，專注於總體經濟、產業循環、長線趨勢邏輯。
-- 找出「共識」與「分歧」：如果群益看空短線但庭澔看好長線，請在 clash_or_sync 中特別標註。
+- 找出「共識」與「分歧」，在 clash_or_sync 中特別標註，但不得出現頻道名稱或主持人姓名。
 - 數據提取：嚴格提取雙方提到的所有關鍵數字與點位。
+- top5_news：從兩段逐字稿中挑出最重要的 5 條新聞，每條包含標題、摘要與來源頻道。
 
 Constraint:
 - 嚴格遵守下方 JSON 格式，不得有多餘文字或 markdown 代碼區塊。
 - 使用台灣繁體中文財經術語。
 - 所有文字欄位必須非空。
+- 所有輸出文字不得出現頻道名稱（群益期貨、財經皓角）或主持人姓名（游庭澔），以「技術面觀點」「總經觀點」等通用描述替代。
 
 輸出格式（純 JSON）:
 {
   "meta": { "date": "YYYY-MM-DD", "channels": ["群益期貨", "財經皓角"] },
-  "daily_focus": "今日市場核心主題",
+  "daily_focus": "今日市場核心主題（一句話）",
+  "top5_news": [
+    { "headline": "新聞標題（15字內）", "summary": "摘要（50字內，不得出現頻道或主持人名稱）", "image_url": null },
+    { "headline": "新聞標題", "summary": "摘要", "image_url": null },
+    { "headline": "新聞標題", "summary": "摘要", "image_url": null },
+    { "headline": "新聞標題", "summary": "摘要", "image_url": null },
+    { "headline": "新聞標題", "summary": "摘要", "image_url": null }
+  ],
   "comparison": {
     "capital_futures": {
       "title": "群益法人觀點",
@@ -67,6 +76,7 @@ Constraint:
     }
   },
   "clash_or_sync": "兩者觀點的衝突點或共識點（最精華部分）",
+  "investor_reminder": "給投資人的操作提醒（50字內，客觀不報明牌）",
   "outputs": {
     "edm_subject": "【雙軌雷達】EDM 主旨",
     "social_media_cards": [

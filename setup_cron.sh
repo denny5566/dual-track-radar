@@ -27,9 +27,12 @@ fi
 echo "[setup_cron] 建立 Docker 映像..."
 docker compose -f "$SCRIPT_DIR/docker-compose.yml" build
 
-# ── 啟動 Discord Bot 常駐服務 ────────────────────────────────────────────────
+# ── 啟動常駐服務（Discord Bot + 前端網站）────────────────────────────────────
 echo "[setup_cron] 啟動 Discord Bot..."
 docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d discord-bot
+
+echo "[setup_cron] 啟動前端網站（port 80）..."
+docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d web
 
 # ── 設定 crontab（週一至週五 09:00）────────────────────────────────────────
 CRON_CMD="0 9 * * 1-5 docker compose -f $SCRIPT_DIR/docker-compose.yml run --rm radar >> $LOG_DIR/radar.log 2>&1"
@@ -46,3 +49,9 @@ echo "  docker compose -f $SCRIPT_DIR/docker-compose.yml run --rm radar python m
 echo ""
 echo "查看 Discord Bot 狀態："
 echo "  docker compose -f $SCRIPT_DIR/docker-compose.yml logs -f discord-bot"
+echo ""
+echo "查看前端網站狀態："
+echo "  docker compose -f $SCRIPT_DIR/docker-compose.yml logs -f web"
+echo ""
+echo "前端網站網址（需開放 Oracle 安全規則 port 80）："
+echo "  http://$(curl -s ifconfig.me)/"
