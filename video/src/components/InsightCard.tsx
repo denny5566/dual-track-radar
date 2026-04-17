@@ -1,5 +1,5 @@
 import React from "react";
-import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
+import { useCurrentFrame, useVideoConfig, interpolate, Easing, Img, staticFile } from "remotion";
 import { COLORS, fontTC, fontEn } from "../theme";
 
 interface Props {
@@ -31,17 +31,19 @@ export const InsightCard: React.FC<Props> = ({ clashOrSync, investorReminder }) 
 
   return (
     <div style={{ width: "100%", height: "100%", background: COLORS.bg, position: "relative", overflow: "hidden" }}>
+      {/* 背景圖 */}
+      <div style={{ position: "absolute", inset: 0, opacity: 0.18 }}>
+        <Img
+          src={staticFile("insight_bg.jpg")}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={() => {}}
+        />
+      </div>
+      {/* 深色遮罩 */}
+      <div style={{ position: "absolute", inset: 0, background: "rgba(11,14,23,0.72)" }} />
+
       {/* 頂部紅條 */}
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 6, background: COLORS.accent }} />
-
-      {/* 背景裝飾 */}
-      <div
-        style={{
-          position: "absolute", top: "30%", right: -80,
-          width: 400, height: 400, borderRadius: "50%",
-          background: `radial-gradient(circle, ${COLORS.accentBlue}18 0%, transparent 70%)`,
-        }}
-      />
 
       <div
         style={{
@@ -64,7 +66,7 @@ export const InsightCard: React.FC<Props> = ({ clashOrSync, investorReminder }) 
           </div>
           <div
             style={{
-              fontSize: 44, color: COLORS.white,
+              fontSize: 56, color: COLORS.white,
               fontFamily: fontTC, fontWeight: 700, lineHeight: 1.2,
             }}
           >
@@ -104,7 +106,7 @@ export const InsightCard: React.FC<Props> = ({ clashOrSync, investorReminder }) 
           </div>
           <div
             style={{
-              fontSize: 24, color: COLORS.offWhite,
+              fontSize: 30, color: COLORS.offWhite,
               fontFamily: fontTC, lineHeight: 1.8,
             }}
           >
@@ -136,7 +138,7 @@ export const InsightCard: React.FC<Props> = ({ clashOrSync, investorReminder }) 
           </div>
           <div
             style={{
-              fontSize: 24, color: COLORS.offWhite,
+              fontSize: 30, color: COLORS.offWhite,
               fontFamily: fontTC, lineHeight: 1.8,
             }}
           >

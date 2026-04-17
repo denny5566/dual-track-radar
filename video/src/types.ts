@@ -1,7 +1,6 @@
 export interface NewsItem {
   headline: string;
   summary: string;
-  source: string;        // 群益期貨 | 財經皓角
   image_url: string | null;
 }
 

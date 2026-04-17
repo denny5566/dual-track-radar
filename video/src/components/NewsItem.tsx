@@ -1,5 +1,5 @@
 import React from "react";
-import { useCurrentFrame, useVideoConfig, interpolate, Easing, Img } from "remotion";
+import { useCurrentFrame, useVideoConfig, interpolate, Easing, Img, staticFile } from "remotion";
 import { NewsItem as NewsItemType } from "../types";
 import { COLORS, fontTC, fontEn } from "../theme";
 
@@ -40,16 +40,16 @@ export const NewsItem: React.FC<Props> = ({ item, index, total }) => {
       {/* 頂部紅條 */}
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 6, background: COLORS.accent }} />
 
-      {/* 圖片區（上半 52%）*/}
+      {/* 圖片區（上半 55%）*/}
       <div
         style={{
           position: "absolute", top: 6, left: 0, right: 0,
-          height: "52%", overflow: "hidden",
+          height: "55%", overflow: "hidden",
           transform: `translateY(${slideY * 0.5}px)`, opacity,
         }}
       >
         {item.image_url ? (
-          <Img src={item.image_url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <Img src={staticFile(item.image_url)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
           <div
             style={{
@@ -73,30 +73,31 @@ export const NewsItem: React.FC<Props> = ({ item, index, total }) => {
         {/* 漸層遮罩 */}
         <div
           style={{
-            position: "absolute", bottom: 0, left: 0, right: 0, height: "50%",
+            position: "absolute", bottom: 0, left: 0, right: 0, height: "25%",
             background: `linear-gradient(to bottom, transparent, ${COLORS.bg})`,
           }}
         />
       </div>
 
-      {/* 文字區（下半）*/}
+      {/* 文字區（下半，從 55% 處開始往下填滿）*/}
       <div
         style={{
-          position: "absolute", bottom: 60, left: 0, right: 0,
-          padding: "0 48px",
+          position: "absolute", top: "55%", left: 0, right: 0, bottom: 60,
+          padding: "40px 52px 20px",
+          display: "flex", flexDirection: "column", justifyContent: "center",
           opacity: textOpacity, transform: `translateY(${textY}px)`,
         }}
       >
         {/* 新聞編號標籤 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
           <div
             style={{
               background: COLORS.accent, color: COLORS.white,
-              fontSize: 13, fontFamily: fontEn, fontWeight: 700,
-              padding: "4px 14px", borderRadius: 4, letterSpacing: "0.1em",
+              fontSize: 34, fontFamily: fontTC, fontWeight: 700,
+              padding: "8px 24px", borderRadius: 4, letterSpacing: "0.05em",
             }}
           >
-            NEWS {index + 1}/{total}
+            {["第一篇", "第二篇", "第三篇", "第四篇", "第五篇"][index] ?? `第${index + 1}篇`}
           </div>
           <div style={{ flex: 1, height: 1, background: COLORS.border }} />
         </div>
@@ -104,9 +105,9 @@ export const NewsItem: React.FC<Props> = ({ item, index, total }) => {
         {/* 標題 */}
         <div
           style={{
-            fontSize: 42, color: COLORS.white,
+            fontSize: 64, color: COLORS.white,
             fontFamily: fontTC, fontWeight: 700,
-            lineHeight: 1.45, marginBottom: 20,
+            lineHeight: 1.4, marginBottom: 28,
           }}
         >
           {item.headline}
@@ -116,8 +117,8 @@ export const NewsItem: React.FC<Props> = ({ item, index, total }) => {
         <div
           style={{
             opacity: lowerOpacity,
-            fontSize: 22, color: COLORS.muted,
-            fontFamily: fontTC, lineHeight: 1.75,
+            fontSize: 40, color: COLORS.muted,
+            fontFamily: fontTC, lineHeight: 1.7,
           }}
         >
           {item.summary}

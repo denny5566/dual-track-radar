@@ -8,32 +8,27 @@
     {
       "headline": "外資連三日賣超 台股承壓",
       "summary": "外資連續三日賣超逾百億，加權指數跌破 21,200，短線籌碼明顯鬆動。",
-      "source": "群益期貨",
-      "image_url": null
+      "image_url": "news_01.jpg"
     },
     {
       "headline": "美10年債殖利率升至4.65%",
       "summary": "Fed 官員鷹派發言推升殖利率，市場降息預期再度後退，科技股估值受壓。",
-      "source": "財經皓角",
-      "image_url": null
+      "image_url": "news_02.jpg"
     },
     {
-      "headline": "台積電法說前夕 機法各有盤算",
+      "headline": "台積電法說前夕 法人審慎觀望",
       "summary": "台積電將於本週公布法說，法人預估 AI CoWoS 需求仍強，但短線消息面壓力不小。",
-      "source": "群益期貨",
-      "image_url": null
+      "image_url": "news_03.jpg"
     },
     {
       "headline": "ISM服務業PMI 53.4 優於預期",
       "summary": "美服務業擴張持續，就業市場韌性強，通膨黏性未消，Fed 降息時程再延後。",
-      "source": "財經皓角",
-      "image_url": null
+      "image_url": "news_04.jpg"
     },
     {
       "headline": "非美市場相對抗跌 新興市場受關注",
       "summary": "美元強勢格局下，非美市場表現相對穩健，亞股與新興市場吸引資金輪動關注。",
-      "source": "財經皓角",
-      "image_url": null
+      "image_url": "news_05.jpg"
     }
   ],
   "comparison": {
@@ -60,7 +55,7 @@
       "strategy": "逢低分批布局優質成長股，避開高本益比科技，留意新興市場機會"
     }
   },
-  "clash_or_sync": "短期看法分歧：群益技術面偏空，建議防守；庭澔認為基本面尚未惡化，長線仍可逢低布局。共識在於短線波動加劇，操作宜保守，等待明確方向再加碼。",
+  "clash_or_sync": "技術面偏空，建議防守等待；基本面尚未惡化，長線仍可逢低布局。共識在於短線波動加劇，操作宜保守，等待明確方向再加碼。",
   "investor_reminder": "市場短線震盪加劇，建議控制倉位、設好停損。勿追高殺低，等待 21,000 支撐確認後再評估加碼時機。長線投資人可留意逢低布局優質個股的機會。",
   "outputs": {
     "edm_subject": "【雙軌雷達 0416】美債壓頂 台股整理——群益偏空 vs 庭澔長線樂觀",

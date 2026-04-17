@@ -101,15 +101,21 @@ async function fetchYouTubeComments(videoId) {
 }
 
 // ── Instagram ─────────────────────────────────────────────────────────────────
+// 使用 Instagram API with Instagram Login（2024/09 後 Basic Display API 已停用）
+// Token 透過 /me 端點自動識別使用者，不需要額外傳 IG_USER_ID
 async function fetchInstagramStats() {
   const token  = process.env.IG_ACCESS_TOKEN;
-  const userId = process.env.IG_USER_ID;
+  const userId = process.env.IG_USER_ID; // 可選，有填則直接用；否則用 /me
 
-  if (!token || !userId) {
+  if (!token) {
     return { notConfigured: true };
   }
 
-  const url = `https://graph.instagram.com/${userId}?fields=followers_count,media_count,username&access_token=${token}`;
+  const endpoint = userId
+    ? `https://graph.instagram.com/v22.0/${userId}`
+    : `https://graph.instagram.com/v22.0/me`;
+
+  const url = `${endpoint}?fields=followers_count,media_count,username&access_token=${token}`;
   const res  = await fetch(url);
   const data = await res.json();
 
@@ -121,21 +127,24 @@ async function fetchInstagramStats() {
     followers:  data.followers_count,
     mediaCount: data.media_count,
     username:   data.username,
-    reach:      null, // 需要 Instagram Insights API（Business 帳號）
   };
 }
 
 // ── Threads ───────────────────────────────────────────────────────────────────
+// Threads Graph API v1.0（使用 /me 端點自動識別）
 async function fetchThreadsStats() {
   const token  = process.env.THREADS_ACCESS_TOKEN;
-  const userId = process.env.THREADS_USER_ID;
+  const userId = process.env.THREADS_USER_ID; // 可選，有填則直接用；否則用 /me
 
-  if (!token || !userId) {
+  if (!token) {
     return { notConfigured: true };
   }
 
-  // Threads Graph API (Meta)
-  const url = `https://graph.threads.net/${userId}?fields=followers_count,threads_count&access_token=${token}`;
+  const endpoint = userId
+    ? `https://graph.threads.net/v1.0/${userId}`
+    : `https://graph.threads.net/v1.0/me`;
+
+  const url = `${endpoint}?fields=id,username,followers_count,threads_count&access_token=${token}`;
   const res  = await fetch(url);
   const data = await res.json();
 
@@ -146,6 +155,6 @@ async function fetchThreadsStats() {
   return {
     followers:  data.followers_count,
     postCount:  data.threads_count,
-    replyCount: null,
+    username:   data.username,
   };
 }

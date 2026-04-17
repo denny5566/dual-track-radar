@@ -1,5 +1,5 @@
 import React from "react";
-import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
+import { useCurrentFrame, useVideoConfig, interpolate, Easing, Img, staticFile } from "remotion";
 import { COLORS, fontTC, fontEn } from "../theme";
 
 interface Props {
@@ -21,18 +21,19 @@ export const Ending: React.FC<Props> = ({ date }) => {
 
   return (
     <div style={{ width: "100%", height: "100%", background: COLORS.bg, position: "relative", overflow: "hidden" }}>
+      {/* 背景圖 */}
+      <div style={{ position: "absolute", inset: 0, opacity: 0.2 }}>
+        <Img
+          src={staticFile("ending_bg.jpg")}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={() => {}}
+        />
+      </div>
+      {/* 深色遮罩 */}
+      <div style={{ position: "absolute", inset: 0, background: "rgba(11,14,23,0.70)" }} />
+
       {/* 頂部紅條 */}
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 6, background: COLORS.accent }} />
-
-      {/* 背景放射裝飾 */}
-      <div
-        style={{
-          position: "absolute", top: "50%", left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: 600, height: 600, borderRadius: "50%",
-          background: `radial-gradient(circle, ${COLORS.accentBlue}12 0%, transparent 65%)`,
-        }}
-      />
 
       <div
         style={{
@@ -66,7 +67,7 @@ export const Ending: React.FC<Props> = ({ date }) => {
           </div>
           <div
             style={{
-              fontSize: 52, color: COLORS.white,
+              fontSize: 64, color: COLORS.white,
               fontFamily: fontTC, fontWeight: 700,
               lineHeight: 1.25, marginBottom: 20,
             }}
