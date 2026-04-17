@@ -114,6 +114,61 @@ python setup_schedule.py --delete
 
 ---
 
+## Oracle Cloud VM 部署與更新
+
+### VM 資訊
+
+| 項目 | 值 |
+|------|-----|
+| IP | `129.150.39.175` |
+| 使用者 | `opc` |
+| SSH 金鑰 | `C:\Users\user\ssh\ssh-key-2026-04-16.key` |
+| 專案路徑 | `/home/opc/NTUAI_project` |
+
+### SSH 登入
+
+```powershell
+ssh -i "C:\Users\user\ssh\ssh-key-2026-04-16.key" opc@129.150.39.175
+```
+
+### 推送更新到 VM
+
+**本機（Windows）：**
+```bash
+git add <檔案>
+git commit -m "說明"
+git push ntuai master
+```
+
+**VM 上：**
+```bash
+cd ~/NTUAI_project
+git pull
+```
+
+如果有改到 Docker 相關（Dockerfile、docker-compose.yml、requirements.txt）：
+```bash
+docker compose build && docker compose up -d
+```
+
+### VM 常用指令
+
+```bash
+# 查看服務狀態
+docker compose ps
+
+# 查看 Discord Bot log
+docker compose logs -f discord-bot
+
+# 重啟 Discord Bot
+docker compose restart discord-bot
+
+# 手動跑管線（測試）
+docker compose run --rm radar python main.py --no-email --no-cleanup
+```
+
+---
+
 ## 注意事項
 
 - **電腦必須在排程時間時開機並登入**，排程才能執行。
