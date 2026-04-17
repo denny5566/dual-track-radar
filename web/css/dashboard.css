@@ -179,8 +179,16 @@
   font-weight: 600;
   font-size: 0.95rem;
   color: var(--text-1);
-  flex: 1;
 }
+.stat-account-name {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-2);
+  font-weight: 400;
+  margin-top: 2px;
+}
+.stat-card-header > div:first-child + .stat-status,
+.stat-card-header > div { flex: 1; }
 .stat-status {
   font-size: 0.7rem;
   color: var(--text-2);

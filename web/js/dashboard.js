@@ -120,6 +120,7 @@ async function loadInstagramStats() {
     document.getElementById('ig-followers').textContent = fmtNum(data.followers);
     document.getElementById('ig-posts').textContent = fmtNum(data.mediaCount);
     document.getElementById('ig-reach').textContent = fmtNum(data.reach) || '—';
+    if (data.username) document.getElementById('ig-username').textContent = '@' + data.username;
     document.getElementById('ig-hint').style.display = 'none';
     setStatus(statusEl, '即時', 'live');
   } catch (err) {
@@ -145,6 +146,7 @@ async function loadThreadsStats() {
     document.getElementById('threads-followers').textContent = fmtNum(data.followers);
     document.getElementById('threads-posts').textContent = fmtNum(data.postCount);
     document.getElementById('threads-replies').textContent = fmtNum(data.replyCount) || '—';
+    if (data.username) document.getElementById('threads-username').textContent = '@' + data.username;
     document.getElementById('threads-hint').style.display = 'none';
     setStatus(statusEl, '即時', 'live');
   } catch (err) {
