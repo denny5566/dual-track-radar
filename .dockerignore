@@ -1,0 +1,13 @@
+.git
+.github
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.log
+output/
+cache/
+data/radar.db
+node_modules/
+video/node_modules/
+web/node_modules/
