@@ -234,7 +234,13 @@ async def _run_pipeline_with_progress(
 
         # Step 3: Analyze
         await set_step(3, "🔄")
-        data = await loop.run_in_executor(None, lambda: m.step_analyze(cleaned or transcripts))
+        # 從下載結果擷取影片日期，確保 meta.date 反映影片日期而非今天
+        _video_date: str | None = None
+        for _res in download_results.values():
+            if _res.get("video_date"):
+                _video_date = _res["video_date"]
+                break
+        data = await loop.run_in_executor(None, lambda: m.step_analyze(cleaned or transcripts, video_date=_video_date))
         if data is None:
             raise RuntimeError("Claude 分析失敗：逐字稿缺失或 API 回傳空結果，請確認音訊已下載")
         if download_results:

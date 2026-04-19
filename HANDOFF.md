@@ -1,6 +1,6 @@
 # 雙軌財經情報雷達 — 開發進度交接文件
 
-> 最後更新：2026-04-17（第六次）
+> 最後更新：2026-04-19（第七次）
 > 對應 PRD：PRD_v2.md
 
 ---
@@ -32,8 +32,9 @@
 | `/publish` | 發布日報（Email + Discord 頻道）|
 | `/revise [建議]` | 帶修改建議重新生成 |
 | `/panel` | 在頻道重新發布持久化控制面板 |
-| 審核 Embed 按鈕（4 個） | ✅ 發布日報 · 🎬 發布影片 · ✏️ 修改建議（Modal 輸入框）· ❌ 取消 |
-| 控制面板（持久化） | Bot 上線時自動發布到 DISCORD_CHANNEL_ID；含「🚀 立即執行完整流程」「📋 查看系統狀態」「⚙️ 僅重新分析」按鈕；Bot 重啟後按鈕仍可用 |
+| 審核 Embed 按鈕（5 個） | 📧 送出 EDM · 📰 發布新聞 · 🎬 發布影片 · ✏️ 修改建議（Modal 輸入框）· ❌ 取消 |
+| 控制面板（持久化） | Bot 上線時自動發布到 DISCORD_CHANNEL_ID；含「🚀 立即執行完整流程」「📋 查看系統狀態」「🖥️ 本機下載」「⚙️ 僅重新分析」「📥 指定 URL 下載」「🗑️ 清理逐字稿」按鈕 |
+| **🖥️ 本機下載** | 發出 `LOCAL_DOWNLOAD_TRIGGER` Embed，讓本機 `local_listener.py` 偵測並執行下載 |
 | 進度追蹤 Embed | 管線分 5 步驟獨立執行，即時更新同一條訊息（不阻塞 Discord event loop）|
 | DM 通知 | 管線失敗（含失敗步驟）或完成時自動 DM 擁有者 |
 | **影片發布流程** | ✅ `_do_publish_video()` 完整重寫：渲染 → YouTube → Instagram 三步驟進度 Embed，各步獨立不互相阻擋 |
@@ -141,6 +142,73 @@
 
 ---
 
+### YouTube 音訊下載架構（重要）
+
+Oracle Cloud VM 的 IP 被 YouTube 列為資料中心 IP，**即使有 cookies 也無法下載音訊**。目前採用兩種方案並行：
+
+#### 方案 A：本機下載（已實作，可靠）
+
+```
+本機 Windows（家用 IP）→ yt-dlp 下載 MP3 → SCP 上傳 VM
+```
+
+**使用流程：**
+1. 本機安裝依賴：`pip install yt-dlp requests python-dotenv`
+2. 確認 `.env` 有 `DISCORD_BOT_TOKEN` 和 `DISCORD_CHANNEL_ID`
+3. 啟動監聽器：`python local_listener.py`（背景執行，每 15 秒輪詢 Discord）
+4. Discord 控制面板按「🖥️ 本機下載」
+5. 監聽器偵測到觸發訊號（120 秒有效期），自動執行 `download_helper.py`
+6. 下載完成後，Discord 回報 VM 上的檔案大小（SSH 驗證）
+7. 按「⚙️ 僅重新分析（不下載）」繼續流程
+
+**音檔存放位置：**
+- 本機：`c:\Users\user\Desktop\114-2\NTUAI\NTUAI_project\output\audio\`
+  - `capital_latest.mp3`（群益期貨）
+  - `yu_latest.mp3`（游庭澔）
+- VM：`/home/opc/NTUAI_project/output/audio/`（SCP 上傳後）
+
+**也可直接執行：**
+```bash
+# 自動抓最新直播存檔
+python download_helper.py
+
+# 指定特定影片 URL
+python download_helper.py --cap "https://www.youtube.com/watch?v=..." --yu "https://www.youtube.com/watch?v=..."
+```
+
+#### 方案 B：OAuth2 Device Code（實驗性，可能繞過 VM IP 封鎖）
+
+`yt-dlp-youtube-oauth2` 插件以「智慧電視」身份認證，有機會繞過資料中心 IP 封鎖。
+
+**VM 一次性設定：**
+```bash
+# 1. SSH 進 VM
+ssh -i "C:/Users/user/ssh/ssh-key-2026-04-16.key" opc@129.150.39.175
+
+# 2. 進入 discord-bot 容器
+docker exec -it $(docker ps -qf name=discord-bot) bash
+
+# 3. 執行 OAuth2 授權（任意 YouTube URL 皆可）
+yt-dlp --username oauth2 --password '' "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+# 終端機顯示：
+#   Please open https://www.google.com/device and enter code XXXX-XXXX
+
+# 4. 用手機或電腦開啟網址，輸入 8 位數代碼，登入 Google 帳號授權
+
+# 5. 授權成功後，token 存於 /root/.cache/yt-dlp/（docker volume ./cache 持久化）
+exit
+```
+
+**啟用 OAuth2 下載（VM 上的 .env）：**
+```bash
+YTDLP_USE_OAUTH2=true
+```
+然後重建容器：`docker compose up --build -d discord-bot`
+
+> ⚠️ 注意：OAuth2 是否能繞過 Oracle Cloud IP 封鎖尚未確認，請先試跑看看。成功後就不再需要本機下載。
+
+---
+
 ## 已知 Bug 與待修項目
 
 | # | 嚴重度 | 位置 | 問題說明 | 建議修法 |
@@ -207,6 +275,14 @@
 
 ---
 
+## 環境變數狀態（新增）
+
+| 變數 | 狀態 | 用途 |
+|------|------|------|
+| `YTDLP_USE_OAUTH2` | ⚠️ 選填 | `true` = 啟用 OAuth2 Device Code 下載（需先完成互動授權）|
+
+---
+
 ## 下一步待辦
 
 ### 緊急
@@ -240,8 +316,14 @@
    ssh -i "C:/Users/user/ssh/ssh-key-2026-04-16.key" opc@129.150.39.175 "cd ~/NTUAI_project && docker compose build web && docker compose up -d web"
    ```
 
-5. **直播下載測試**
-   - 等有直播時跑 `python main.py --no-email --no-cleanup`
+5. **測試本機下載流程**
+   - 確認本機已安裝 yt-dlp：`pip install yt-dlp`
+   - 執行：`python local_listener.py`
+   - Discord 按「🖥️ 本機下載」，確認音檔出現在 `output/audio/`
+
+6. **（選用）測試 OAuth2 VM 下載**
+   - 依上方「方案 B」步驟在 VM 授權一次
+   - 設 `YTDLP_USE_OAUTH2=true`，重建容器，試跑完整流程
 
 6. **Vercel 部署前端**
    - 新增 Vercel 環境變數：`ANTHROPIC_API_KEY`、`YOUTUBE_API_KEY`、`YOUTUBE_CHANNEL_ID`、`IG_ACCESS_TOKEN`
@@ -256,6 +338,17 @@
 ## 常用指令
 
 ```bash
+# ── 本機下載工具（在 Windows 本機執行）──────────────────────────
+# 啟動監聽器（等 Discord 觸發）
+python local_listener.py
+
+# 直接下載兩頻道最新音檔並上傳 VM（不需要監聽器）
+python download_helper.py
+
+# 指定特定影片下載
+python download_helper.py --cap "URL" --yu "URL"
+
+# ── 完整管線（在 Oracle VM 或 Docker 內執行）─────────────────────
 # 完整管線（含下載）
 python main.py
 
@@ -311,7 +404,9 @@ docker ps
 
 ```
 ├── main.py              # 主管線（9 步驟 + Step 3.5 新聞生成 + Step 4.5 圖片/旁白 + 影片渲染/上傳）
-├── monitor.py           # Step 1：YouTube 下載（平行雙頻道）
+├── monitor.py           # Step 1：YouTube 下載（平行雙頻道，支援 OAuth2）
+├── local_listener.py    # 本機 Windows 用：輪詢 Discord，偵測「🖥️ 本機下載」觸發並執行 download_helper.py
+├── download_helper.py   # 本機 Windows 用：用家用 IP 下載音檔，SCP 上傳至 Oracle VM
 ├── transcribe.py        # Step 2：Groq + faster-whisper 轉錄
 ├── preprocess.py        # Step 2.5：逐字稿前處理
 ├── analyze.py           # Step 3：Claude 分析（含 top5_news + investor_reminder）

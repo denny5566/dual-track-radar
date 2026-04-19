@@ -91,11 +91,11 @@ def step_preprocess(transcripts: dict[str, str | None]) -> dict[str, str | None]
 
 
 # ── Step 3 ──────────────────────────────────────────────────────────────────
-def step_analyze(transcripts: dict[str, str | None]) -> dict | None:
+def step_analyze(transcripts: dict[str, str | None], video_date: str | None = None) -> dict | None:
     from transcribe import load_cleaned_transcript, load_transcript
     from analyze import analyze
 
-    log.info("=== Step 3：Claude 雙軌分析（model=%s, env=%s） ===", CLAUDE_MODEL, ENV)
+    log.info("=== Step 3：Claude 雙軌分析（model=%s, env=%s, video_date=%s） ===", CLAUDE_MODEL, ENV, video_date or "今日")
 
     # 優先使用前處理後的清洗版；若無則 fallback 原始逐字稿
     ta = (transcripts.get("capital_futures")
@@ -109,8 +109,8 @@ def step_analyze(transcripts: dict[str, str | None]) -> dict | None:
         log.error("[FAIL] 逐字稿缺失，無法進行分析")
         return None
 
-    data = analyze(ta, tb)
-    log.info("[OK] 分析完成：%s", data.get("daily_focus", ""))
+    data = analyze(ta, tb, today=video_date)
+    log.info("[OK] 分析完成（日期：%s）：%s", data.get("meta", {}).get("date", "?"), data.get("daily_focus", ""))
     return data
 
 
@@ -399,8 +399,14 @@ def main() -> None:
     log.info("=== 雙軌財經情報雷達啟動 ===  env=%s  model=%s", ENV, CLAUDE_MODEL)
 
     # Step 1
+    video_date: str | None = None
     if not args.skip_download:
-        step_download()
+        download_results = step_download()
+        # 從下載結果擷取影片日期（優先群益，其次游庭澔）
+        for res in download_results.values():
+            if res.get("video_date"):
+                video_date = res["video_date"]
+                break
 
     # Step 2
     transcripts: dict[str, str | None] = {}
@@ -412,7 +418,7 @@ def main() -> None:
     if not args.skip_preprocess:
         cleaned_transcripts = step_preprocess(transcripts)
 
-    data = step_analyze(cleaned_transcripts or transcripts)
+    data = step_analyze(cleaned_transcripts or transcripts, video_date=video_date)
     if data is None:
         log.error("管線中止：分析失敗")
         sys.exit(1)

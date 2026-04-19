@@ -28,6 +28,7 @@ services:
       - ./cookies.txt:/app/cookies.txt       # YouTube cookies（解決 bot 偵測）
       - ./web/public/data:/app/web/public/data   # 發布至網站（step_save_db 寫入）
       - ./web/public/images:/app/web/public/images
+      - ./cache:/root/.cache                 # OAuth2 token 持久化（重建容器不遺失）
     command: ["python", "discord_bot.py"]
     restart: unless-stopped   # Bot 要常駐，異常退出後自動重啟
 

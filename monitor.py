@@ -12,13 +12,13 @@ from pathlib import Path
 
 import yt_dlp
 
-from config import AUDIO_DIR, CHANNELS, FFMPEG_LOCATION, YTDLP_COOKIE_FILE, YTDLP_OPTS_AUDIO
+from config import AUDIO_DIR, CHANNELS, FFMPEG_LOCATION, YTDLP_COOKIE_FILE, YTDLP_OPTS_AUDIO, YTDLP_USE_OAUTH2
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
 
-def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword: str = "") -> tuple[str, str] | None:
+def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword: str = "") -> tuple[str, str, str | None] | None:
     """
     從頻道 /streams 頁面取得最新一支「已完成」的直播存檔 URL。
     只發一次 flat extract 請求，避免多次請求觸發 YouTube bot 偵測。
@@ -26,6 +26,7 @@ def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword:
     """
     import os
     _cookie_opts = {"cookiefile": YTDLP_COOKIE_FILE} if YTDLP_COOKIE_FILE and os.path.exists(YTDLP_COOKIE_FILE) else {}
+    _oauth2_opts = {"username": "oauth2", "password": ""} if YTDLP_USE_OAUTH2 else {}
     opts = {
         "quiet": False,
         "no_warnings": False,
@@ -35,6 +36,7 @@ def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword:
             "youtube": {"player_client": ["mweb", "ios", "android", "web"]},
         },
         **_cookie_opts,
+        **_oauth2_opts,
     }
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -47,8 +49,9 @@ def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword:
         log.warning("[%s] 無法取得播放清單", channel_name)
         return None
 
-    def _pick(entries: list, keyword: str) -> tuple[str, str] | None:
+    def _pick(entries: list, keyword: str) -> tuple[str, str, str | None] | None:
         """從 entries 挑選第一支符合條件的已完成影片（只用 flat extract 資料，不額外發請求）。"""
+        import re as _re
         for entry in entries:
             if not entry:
                 continue
@@ -64,8 +67,17 @@ def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword:
             if keyword and keyword not in title:
                 log.info("[%s] 跳過（標題不符）：%s", channel_name, title)
                 continue
-            log.info("[%s] 找到最新存檔：%s", channel_name, title)
-            return f"https://www.youtube.com/watch?v={video_id}", title
+            # 取得影片日期：優先用 yt-dlp 的 upload_date（YYYYMMDD），否則從標題解析
+            video_date: str | None = None
+            raw_date = entry.get("upload_date", "") or ""
+            if len(raw_date) == 8 and raw_date.isdigit():
+                video_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+            else:
+                m = _re.search(r'(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})', title)
+                if m:
+                    video_date = f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+            log.info("[%s] 找到最新存檔：%s（影片日期：%s）", channel_name, title, video_date or "未知")
+            return f"https://www.youtube.com/watch?v={video_id}", title, video_date
         return None
 
     result = _pick(info["entries"], title_keyword)
@@ -141,7 +153,7 @@ def monitor_and_download(channel_key: str) -> dict:
     if not result:
         return {"channel": channel_key, "success": False, "audio_path": None}
 
-    video_url, title = result
+    video_url, title, video_date = result
     success = _download_audio(video_url, out_path, ch["name"])
     return {
         "channel": channel_key,
@@ -149,6 +161,7 @@ def monitor_and_download(channel_key: str) -> dict:
         "audio_path": str(out_path) if success else None,
         "video_url": video_url,
         "title": title,
+        "video_date": video_date,
     }
 
 
@@ -170,16 +183,25 @@ def download_specific_url(channel_key: str, video_url: str) -> dict:
         },
         **_cookie_opts,
     }
+    import re as _re
     title = video_url
+    video_date: str | None = None
     try:
         with yt_dlp.YoutubeDL(check_opts) as ydl:
             meta = ydl.extract_info(video_url, download=False)
         if meta:
             title = meta.get("title", video_url)
+            raw_date = meta.get("upload_date", "") or ""
+            if len(raw_date) == 8 and raw_date.isdigit():
+                video_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+            else:
+                m = _re.search(r'(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})', title)
+                if m:
+                    video_date = f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
     except Exception:
         pass
 
-    log.info("[%s] 指定下載：%s", ch["name"], title)
+    log.info("[%s] 指定下載：%s（影片日期：%s）", ch["name"], title, video_date or "未知")
     success = _download_audio(video_url, out_path, ch["name"])
     return {
         "channel": channel_key,
@@ -187,6 +209,7 @@ def download_specific_url(channel_key: str, video_url: str) -> dict:
         "audio_path": str(out_path) if success else None,
         "video_url": video_url,
         "title": title,
+        "video_date": video_date,
     }
 
 

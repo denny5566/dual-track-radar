@@ -98,6 +98,12 @@ IG_VIDEO_BASE_URL = os.getenv("IG_VIDEO_BASE_URL", "")
 # cookies.txt 路徑（從瀏覽器匯出的 Netscape 格式，解決 YouTube bot 偵測）
 YTDLP_COOKIE_FILE = os.getenv("YTDLP_COOKIE_FILE", "/app/cookies.txt")
 
+# OAuth2 Device Code flow（yt-dlp-youtube-oauth2 插件）
+# 設 YTDLP_USE_OAUTH2=true 後，需在 VM 上執行一次互動式授權：
+#   docker exec -it <discord-bot容器> yt-dlp --username oauth2 --password '' https://www.youtube.com/watch?v=jNQXAC9IVRw
+#   按提示在手機/電腦完成 Google 帳號授權，token 存於 /root/.cache/yt-dlp/
+YTDLP_USE_OAUTH2 = os.getenv("YTDLP_USE_OAUTH2", "false").lower() == "true"
+
 YTDLP_OPTS_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
     "postprocessors": [{
@@ -118,6 +124,8 @@ YTDLP_OPTS_AUDIO = {
             "player_client": ["mweb", "ios", "android"],
         },
     },
+    # OAuth2：啟用時以「智慧電視」身份認證，有機會繞過 datacenter IP 封鎖
+    **({"username": "oauth2", "password": ""} if YTDLP_USE_OAUTH2 else {}),
     **({"cookiefile": YTDLP_COOKIE_FILE} if YTDLP_COOKIE_FILE and __import__("os").path.exists(YTDLP_COOKIE_FILE) else {}),
     **({"ffmpeg_location": FFMPEG_LOCATION} if FFMPEG_LOCATION else {}),
 }
