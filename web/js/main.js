@@ -271,30 +271,32 @@ async function loadMarketData() {
   }
 }
 
-// ── Video Hub（legacy stub）─────────────────────────────
+// ── Video Hub — 動態更新影音專區 ──────────────────────
 
 async function initVideos() {
-  const container = document.getElementById('video-accordion');
-  if (!container) return;
+  // 嘗試從 latest.json 讀取最新 YouTube video_id，更新嵌入式播放器
+  const iframe = document.querySelector('#tab-video .yt-embed-container iframe');
+  if (!iframe) return;
 
-  const mockVideos = [
-    { title: "AI 雙軌財經解析短影音", date: "2026-04-18", url: "#" },
-  ];
+  try {
+    const res = await fetch('/data/latest.json');
+    if (!res.ok) return;
+    const data = await res.json();
 
-  container.innerHTML = mockVideos.map(v => `
-    <div class="accordion-item">
-      <div class="accordion-header" onclick="this.parentElement.classList.toggle('active')">
-        <span>${esc(v.date)} — ${esc(v.title)}</span>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
-      </div>
-      <div class="accordion-content">
-        <div style="background:#111;padding:2rem;text-align:center;border-radius:6px;margin-top:1rem;border:1px solid rgba(255,255,255,0.1)">
-           <p style="color:var(--text-2);margin-bottom:1rem">🎥 此區域將置入生成的短影音播放器</p>
-           <button class="tab-btn">▶ 播放影片</button>
-        </div>
-      </div>
-    </div>
-  `).join('');
+    if (data.youtube_video_id) {
+      const vid = encodeURIComponent(data.youtube_video_id);
+      iframe.src = `https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1`;
+
+      // 更新說明文字以顯示最新影片日期
+      const descEl = document.querySelector('#tab-video .yt-channel-desc');
+      if (descEl && data.meta?.date) {
+        descEl.textContent =
+          `最新影片：${data.meta.date}　·　每日 AI 自動生成財經解析短影音 · 台股 & 美股動態觀察 · 訂閱免費收看`;
+      }
+    }
+  } catch {
+    // 靜默 fallback — 維持 HTML 中的頻道播放清單嵌入
+  }
 }
 
 // ── Init ─────────────────────────────────────────────

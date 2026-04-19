@@ -72,36 +72,44 @@ async def _dm_owner(content: str) -> None:
 
 def _build_report_embed(data: dict) -> discord.Embed:
     """將分析 JSON 轉為 Discord Embed 預覽（PRD v2 § 7.3）。"""
-    meta = data.get("meta", {})
-    cap  = data.get("capital_futures", {})
-    yu   = data.get("yu_ting_hao", {})
+    meta       = data.get("meta", {})
+    comparison = data.get("comparison", {})
+    cap        = comparison.get("capital_futures", {})
+    yu         = comparison.get("yu_ting_hao", {})
+    article    = data.get("article", {})
+
+    # 優先顯示文章標題，否則顯示今日焦點
+    if article.get("title"):
+        description = f"📰 **{article['title']}**\n\n**今日焦點：** {data.get('daily_focus', '—')}"
+    else:
+        description = f"**今日焦點：** {data.get('daily_focus', '—')}"
 
     embed = discord.Embed(
         title=f"📊 {meta.get('date', '今日')} 雙軌財經情報",
-        description=f"**今日焦點：** {data.get('daily_focus', '—')}",
+        description=description,
         color=0x2b5ce6,
         timestamp=datetime.now(),
     )
 
-    cap_points = cap.get("key_points", [])
+    cap_points = cap.get("main_points", [])
     if cap_points:
         embed.add_field(
-            name=f"🔵 {cap.get('title', '群益期貨')}",
+            name=f"🔵 {cap.get('title', '技術面觀察')}",
             value="\n".join(f"• {p}" for p in cap_points[:3]),
             inline=False,
         )
 
-    yu_points = yu.get("key_points", [])
+    yu_points = yu.get("main_points", [])
     if yu_points:
         embed.add_field(
-            name=f"🟠 {yu.get('title', '游庭皓')}",
+            name=f"🟠 {yu.get('title', '宏觀基本面')}",
             value="\n".join(f"• {p}" for p in yu_points[:3]),
             inline=False,
         )
 
-    insight = data.get("combined_insight", "")
-    if insight:
-        embed.add_field(name="💡 綜合洞察", value=insight[:300], inline=False)
+    clash = data.get("clash_or_sync", "")
+    if clash:
+        embed.add_field(name="💡 觀點統整", value=clash[:300], inline=False)
 
     source_videos = data.get("_source_videos", {})
     if source_videos:
@@ -150,6 +158,7 @@ async def _run_pipeline_with_progress(
         "⬜ 語音辨識 + VAD 過濾",
         "⬜ 逐字稿前處理",
         "⬜ Claude AI 分析",
+        "⬜ 生成新聞文章",
         "⬜ 產出 PDF / Banner",
     ]
     if skip_download:
@@ -229,10 +238,38 @@ async def _run_pipeline_with_progress(
             data["_source_videos"] = download_results
         await set_step(3, "✅")
 
-        # Step 4: Render report cards
+        # Step 4: Generate news article (新聞文章生成)
         await set_step(4, "🔄")
-        banner_path, pdf_path = await loop.run_in_executor(None, lambda: m.step_render_cards(data))
+        try:
+            from generate_article import generate_article as _gen_article
+            from transcribe import load_cleaned_transcript, load_transcript
+            ta_text = (
+                cleaned.get("capital_futures")
+                or load_cleaned_transcript("capital_futures")
+                or load_transcript("capital_futures")
+            )
+            tb_text = (
+                cleaned.get("yu_ting_hao")
+                or load_cleaned_transcript("yu_ting_hao")
+                or load_transcript("yu_ting_hao")
+            )
+            if ta_text and tb_text:
+                article_result = await loop.run_in_executor(
+                    None, lambda: _gen_article(ta_text, tb_text)
+                )
+                if article_result.get("article"):
+                    data["article"] = article_result["article"]
+                    log.info("[OK] 新聞文章生成成功：%s", data["article"].get("title", ""))
+            else:
+                log.warning("[WARN] 逐字稿不足，跳過文章生成")
+        except Exception as _e:
+            log.warning("文章生成失敗（不中斷流程）：%s", _e)
         await set_step(4, "✅")
+
+        # Step 5: Render report cards
+        await set_step(5, "🔄")
+        banner_path, pdf_path = await loop.run_in_executor(None, lambda: m.step_render_cards(data))
+        await set_step(5, "✅")
 
         # 儲存路徑供發布時使用（避免重複渲染）
         global _pending_cards
@@ -391,6 +428,13 @@ async def _do_publish_video(interaction: discord.Interaction, data: dict) -> Non
             if yt_id:
                 await set_step(1, "✅")
                 result_lines.append(f"▶️ YouTube：https://www.youtube.com/watch?v={yt_id}")
+                # 把 video_id 寫回 data 並更新網站資料 JSON（供影音專區嵌入）
+                data["youtube_video_id"] = yt_id
+                try:
+                    await loop.run_in_executor(None, lambda: m.step_save_db(data))
+                    log.info("[OK] youtube_video_id 已更新至網站 JSON：%s", yt_id)
+                except Exception as _save_err:
+                    log.warning("更新網站影片 ID 失敗：%s", _save_err)
             else:
                 await set_step(1, "❌")
                 result_lines.append("▶️ YouTube：上傳失敗（請檢查 OAuth2 憑證）")
@@ -512,7 +556,7 @@ class _ReviewView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)  # persistent — 不超時
 
-    @discord.ui.button(label="✅ 發布日報", style=discord.ButtonStyle.success,
+    @discord.ui.button(label="📧 送出 EDM", style=discord.ButtonStyle.success,
                        custom_id="review_publish_daily", row=0)
     async def publish_daily_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
         global _pending_data
@@ -524,7 +568,7 @@ class _ReviewView(discord.ui.View):
         _pending_data = None
         await _do_publish_daily(interaction, data)
 
-    @discord.ui.button(label="🗄️ 發布至網站", style=discord.ButtonStyle.primary,
+    @discord.ui.button(label="📰 發布新聞", style=discord.ButtonStyle.primary,
                        custom_id="review_publish_web", row=0)
     async def publish_db_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
         global _pending_data
