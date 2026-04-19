@@ -20,7 +20,7 @@ import os
 import sys
 import time
 import subprocess
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -163,9 +163,21 @@ def main() -> None:
 
             if ok:
                 print(f"[{ts2}] ✅ 下載 + 上傳完成")
+
+                # 讀取 download_helper 寫入的 VM 驗證摘要
+                summary_file = Path(__file__).parent / ".upload_summary"
+                vm_detail = ""
+                try:
+                    if summary_file.exists():
+                        vm_detail = "\n" + summary_file.read_text(encoding="utf-8").strip()
+                        summary_file.unlink()
+                except Exception:
+                    pass
+
                 post_to_channel(
-                    "✅ **音檔已下載並上傳至 VM！**\n"
-                    "👉 請到 Discord 控制面板按「⚙️ 僅重新分析（不下載）」繼續流程。"
+                    "✅ **音檔已下載並上傳至 VM！**"
+                    + (f"\n```\n{vm_detail}\n```" if vm_detail else "")
+                    + "\n👉 請按「⚙️ 僅重新分析（不下載）」繼續流程。"
                 )
             else:
                 print(f"[{ts2}] ❌ 失敗")

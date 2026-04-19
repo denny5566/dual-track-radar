@@ -43,6 +43,19 @@ def _scp(local_path: str, remote_path: str) -> bool:
     return result.returncode == 0
 
 
+def _verify_on_vm(filename: str) -> str:
+    """SSH 確認 VM 上的檔案大小，回傳人類可讀字串，失敗回傳空字串。"""
+    cmd = [
+        "ssh", "-i", VM_KEY,
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "ConnectTimeout=10",
+        VM_HOST,
+        f"ls -lh {VM_AUDIO_DIR}/{filename} 2>/dev/null | awk '{{print $5}}'",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
 def _ensure_remote_dir() -> None:
     """確保 VM 上的目標目錄存在。"""
     subprocess.run(
@@ -96,27 +109,40 @@ def main() -> bool:
     # Step 2: 確認 VM 目錄存在
     _ensure_remote_dir()
 
-    # Step 3: SCP 上傳
+    # Step 3: SCP 上傳 + VM 驗證
     success_count = 0
+    upload_summary: list[str] = []
+
     for key, res in results.items():
+        ch_name = {"capital_futures": "群益期貨", "yu_ting_hao": "游庭澔"}.get(key, key)
         if res.get("success") and res.get("audio_path"):
-            local_path = Path(res["audio_path"])
-            title      = res.get("title", "（未知標題）")[:60]
-            print(f"\n⬆️  上傳 {local_path.name}...")
+            local_path  = Path(res["audio_path"])
+            local_size  = local_path.stat().st_size // 1024  # KB
+            title       = res.get("title", "（未知標題）")[:60]
+
+            print(f"\n⬆️  上傳 {local_path.name}（本機 {local_size} KB）...")
             print(f"   標題：{title}")
+
             if _scp(str(local_path), f"{VM_AUDIO_DIR}/{local_path.name}"):
-                print(f"   ✅ 上傳成功")
+                vm_size = _verify_on_vm(local_path.name)
+                if vm_size:
+                    print(f"   ✅ 上傳成功，VM 確認：{vm_size}")
+                    upload_summary.append(f"✅ {ch_name}：{local_path.name}（{vm_size}）")
+                else:
+                    print(f"   ⚠️  SCP 回報成功，但 VM 驗證失敗")
+                    upload_summary.append(f"⚠️ {ch_name}：SCP 成功，VM 驗證異常")
                 success_count += 1
             else:
                 print(f"   ❌ 上傳失敗")
+                upload_summary.append(f"❌ {ch_name}：SCP 上傳失敗")
         else:
-            ch_name = {"capital_futures": "群益期貨", "yu_ting_hao": "游庭澔"}.get(key, key)
             print(f"\n❌ {ch_name}：下載失敗（請確認影片是否存在或 yt-dlp 已安裝）")
+            upload_summary.append(f"❌ {ch_name}：下載失敗")
 
     print()
     print("=" * 60)
     if success_count == 2:
-        print("✅ 兩個頻道音檔已上傳 VM！")
+        print("✅ 兩個頻道音檔已上傳 VM，並通過 SSH 驗證！")
         print()
         print("👉 下一步：到 Discord 控制面板")
         print("   按「⚙️ 僅重新分析（不下載）」開始分析")
@@ -127,6 +153,11 @@ def main() -> bool:
         print("❌ 所有頻道下載失敗")
         print("   請確認：1) yt-dlp 已安裝  2) 網路正常  3) YouTube 可正常開啟")
     print("=" * 60)
+
+    # 把 upload_summary 存到暫存檔，讓 local_listener 讀取後貼到 Discord
+    summary_file = Path(__file__).parent / ".upload_summary"
+    summary_file.write_text("\n".join(upload_summary), encoding="utf-8")
+
     return success_count > 0
 
 
