@@ -202,8 +202,11 @@ async def _run_pipeline_with_progress(
                 await set_step(0, "❌")
                 raise RuntimeError(
                     f"音檔下載失敗：{', '.join(failed_chs)}\n"
-                    "可能原因：YouTube bot 偵測、網路逾時、URL 無效或 cookies 過期。\n"
-                    "請確認 cookies.txt 含有效登入 token，或稍後重試。"
+                    "VM IP 被 YouTube 封鎖（資料中心 IP 限制）。\n\n"
+                    "**解決方法：**\n"
+                    "1️⃣ 在本機執行：`python download_helper.py`\n"
+                    "2️⃣ 等待上傳完成（約 1-2 分鐘）\n"
+                    "3️⃣ 回到 Discord 按「⚙️ 僅重新分析（不下載）」"
                 )
             await set_step(0, "✅")
 
@@ -727,9 +730,11 @@ def _build_control_panel_embed() -> discord.Embed:
             "使用下方按鈕手動觸發管線，無需等待排程。\n\n"
             "**🚀 立即執行完整流程** — 下載 → 辨識 → 前處理 → 分析 → 產出\n"
             "**📋 查看系統狀態** — 顯示最近 5 筆執行記錄\n"
-            "**⚙️ 僅重新分析** — 略過下載，直接對現有音訊重新分析\n"
-            "**📥 指定 URL 下載** — 填入 YouTube 網址下載特定影片（留空仍用最新）\n"
+            "**⚙️ 僅重新分析（不下載）** — 用本機已上傳的音檔直接分析\n"
+            "**📥 指定 URL 下載** — 填入 YouTube 網址下載特定影片\n"
             "**🗑️ 清理逐字稿** — 當天結束後手動清除逐字稿暫存\n\n"
+            "⚠️ **下載失敗時**：先在本機執行 `python download_helper.py`，\n"
+            "再按「⚙️ 僅重新分析」即可。\n\n"
             f"Bot 上線時間：{datetime.now().strftime('%Y-%m-%d %H:%M')}"
         ),
         color=0x4f46e5,
