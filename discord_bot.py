@@ -679,6 +679,29 @@ class _ControlPanelView(discord.ui.View):
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @discord.ui.button(
+        label="🖥️ 本機下載",
+        style=discord.ButtonStyle.primary,
+        custom_id="ctrl_local_download",
+        row=1,
+    )
+    async def local_download_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        """發出觸發訊號，讓本機 local_listener.py 執行下載並上傳至 VM。"""
+        await interaction.response.defer(thinking=False)
+
+        trigger_embed = discord.Embed(
+            title="⬇️ 本機下載請求",
+            description=(
+                "`local_listener.py` 偵測到此訊號後會自動下載並上傳音檔。\n\n"
+                "上傳完成後請按 **「⚙️ 僅重新分析（不下載）」** 繼續流程。\n\n"
+                "⚠️ 若 2 分鐘後無回應，請確認本機已執行 `python local_listener.py`"
+            ),
+            color=0x4f46e5,
+            timestamp=datetime.now(),
+        )
+        trigger_embed.set_footer(text="LOCAL_DOWNLOAD_TRIGGER")
+        await interaction.followup.send(embed=trigger_embed)
+
+    @discord.ui.button(
         label="⚙️ 僅重新分析（不下載）",
         style=discord.ButtonStyle.secondary,
         custom_id="ctrl_reanalyze",
@@ -728,13 +751,14 @@ def _build_control_panel_embed() -> discord.Embed:
         title="🎛️ 雙軌財經雷達 — 控制面板",
         description=(
             "使用下方按鈕手動觸發管線，無需等待排程。\n\n"
-            "**🚀 立即執行完整流程** — 下載 → 辨識 → 前處理 → 分析 → 產出\n"
+            "**🚀 立即執行完整流程** — VM 自動下載 → 辨識 → 分析 → 產出\n"
             "**📋 查看系統狀態** — 顯示最近 5 筆執行記錄\n"
-            "**⚙️ 僅重新分析（不下載）** — 用本機已上傳的音檔直接分析\n"
+            "**🖥️ 本機下載** — 觸發本機下載音檔並上傳 VM（需先開啟 local_listener.py）\n"
+            "**⚙️ 僅重新分析（不下載）** — 用已上傳的音檔直接分析\n"
             "**📥 指定 URL 下載** — 填入 YouTube 網址下載特定影片\n"
             "**🗑️ 清理逐字稿** — 當天結束後手動清除逐字稿暫存\n\n"
-            "⚠️ **下載失敗時**：先在本機執行 `python download_helper.py`，\n"
-            "再按「⚙️ 僅重新分析」即可。\n\n"
+            "💡 **YouTube 被封鎖時的流程**：\n"
+            "本機執行 `python local_listener.py` → 按「🖥️ 本機下載」→ 按「⚙️ 僅重新分析」\n\n"
             f"Bot 上線時間：{datetime.now().strftime('%Y-%m-%d %H:%M')}"
         ),
         color=0x4f46e5,
