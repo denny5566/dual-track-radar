@@ -2,8 +2,8 @@ name: Daily Transcript Fetch
 
 on:
   schedule:
-    # 23:00 UTC = 07:00 AM 台北時間（UTC+8），週一到週五
-    - cron: '0 23 * * 0-4'
+    # 02:00 UTC = 10:00 AM 台北時間（UTC+8），週一到週五
+    - cron: '0 2 * * 1-5'
   workflow_dispatch:    # 允許手動觸發（測試 / 補跑用）
 
 jobs:
