@@ -57,12 +57,60 @@ log = logging.getLogger(__name__)
 
 # ── Step 1 ──────────────────────────────────────────────────────────────────
 def step_download(url_overrides: dict[str, str] | None = None) -> dict:
-    from monitor import run_dual_monitor
-    log.info("=== Step 1：監控並下載音檔（url_overrides=%s）===", url_overrides)
-    results = run_dual_monitor(url_overrides=url_overrides)
+    """
+    Step 1：取得逐字稿。
+
+    優先策略（字幕 API）：
+      YouTube Data API v3 找到最新影片 ID → youtube-transcript-api 取字幕。
+      不需下載音檔，不受 Oracle VM datacenter IP 封鎖影響。
+
+    Fallback（yt-dlp 下載）：
+      字幕不可用時（影片未處理完、字幕停用）才啟動音檔下載。
+      在 VM 上通常失敗，但本機執行可成功（download_helper.py 路徑）。
+    """
+    log.info("=== Step 1：取得逐字稿（字幕 API 優先，url_overrides=%s）===", url_overrides)
+
+    # ── 字幕 API（主要方式）──────────────────────────────────────────────────
+    try:
+        from transcript_monitor import run_dual_transcript_monitor
+        results = run_dual_transcript_monitor(url_overrides=url_overrides)
+        failed = [k for k, v in results.items() if not v.get("success")]
+
+        if not failed:
+            # 全部成功，直接回傳（跳過 yt-dlp）
+            for key, res in results.items():
+                log.info("[OK] %s：%d 字（來源：字幕 API）",
+                         key, len(res.get("transcript") or ""))
+            return results
+
+        log.warning("字幕 API 部分失敗（%s），嘗試 yt-dlp fallback", failed)
+
+    except Exception as e:
+        log.warning("字幕 API 不可用（%s），回退到 yt-dlp", e)
+        results = {}
+        failed = list(__import__("config").CHANNELS.keys())
+
+    # ── yt-dlp Fallback（本機執行可用；VM 上通常被封鎖）────────────────────
+    try:
+        from monitor import run_dual_monitor
+        audio_results = run_dual_monitor(url_overrides=url_overrides)
+        for key in failed:
+            if audio_results.get(key, {}).get("success"):
+                results[key] = audio_results[key]
+                log.info("[OK] %s：yt-dlp 下載成功", key)
+            else:
+                results.setdefault(key, audio_results.get(key, {
+                    "channel": key, "success": False, "audio_path": None,
+                }))
+                log.info("[FAIL] %s：無音檔（VM IP 被封鎖，請用本機下載）", key)
+    except Exception as e:
+        log.error("yt-dlp fallback 失敗：%s", e)
+
     for key, res in results.items():
-        icon = "[OK]" if res["success"] else "[FAIL]"
-        log.info("%s %s: %s", icon, key, res.get("audio_path") or "無音檔")
+        icon = "[OK]" if res.get("success") else "[FAIL]"
+        source = res.get("transcript_source", "audio")
+        log.info("%s %s: %s（來源：%s）", icon, key,
+                 res.get("title") or res.get("audio_path") or "無", source)
     return results
 
 

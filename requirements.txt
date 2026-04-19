@@ -1,6 +1,7 @@
 # 核心抓取與音訊
 yt-dlp[default]>=2026.1.0
 yt-dlp-youtube-oauth2>=0.2.0   # OAuth2 Device Code flow（繞過 datacenter IP 封鎖）
+youtube-transcript-api>=0.6.0  # 直接取得 YouTube 字幕（不需下載音檔，VM 友善）
 pydub>=0.25.1
 
 # 語音轉文字（faster-whisper 含 Silero VAD 支援）

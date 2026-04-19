@@ -154,15 +154,15 @@ async def _run_pipeline_with_progress(
 
     # 步驟清單（icon 開頭可動態替換）
     steps = [
-        "⬜ 下載音訊",
-        "⬜ 語音辨識 + VAD 過濾",
+        "⬜ 取得逐字稿（字幕 API / 下載音訊）",
+        "⬜ 語音辨識（音檔模式時執行）",
         "⬜ 逐字稿前處理",
         "⬜ Claude AI 分析",
         "⬜ 生成新聞文章",
         "⬜ 產出 PDF / Banner",
     ]
     if skip_download:
-        steps[0] = "⏭️ 下載音訊（略過）"
+        steps[0] = "⏭️ 取得逐字稿（略過）"
 
     progress_msg = await interaction.followup.send(
         embed=_build_progress_embed(steps)
@@ -191,7 +191,7 @@ async def _run_pipeline_with_progress(
     download_results: dict = {}
 
     try:
-        # Step 0: Download
+        # Step 0: 取得逐字稿（字幕 API 優先）
         if not skip_download:
             await set_step(0, "🔄")
             download_results = await loop.run_in_executor(
@@ -201,26 +201,36 @@ async def _run_pipeline_with_progress(
             if failed_chs:
                 await set_step(0, "❌")
                 raise RuntimeError(
-                    f"音檔下載失敗：{', '.join(failed_chs)}\n"
-                    "VM IP 被 YouTube 封鎖（資料中心 IP 限制）。\n\n"
+                    f"逐字稿取得失敗：{', '.join(failed_chs)}\n"
+                    "字幕 API 不可用（影片尚未處理完畢或字幕停用），且 VM IP 被 YouTube 封鎖。\n\n"
                     "**解決方法：**\n"
-                    "1️⃣ 在本機執行：`python download_helper.py`\n"
-                    "2️⃣ 等待上傳完成（約 1-2 分鐘）\n"
-                    "3️⃣ 回到 Discord 按「⚙️ 僅重新分析（不下載）」"
+                    "1️⃣ 稍等 15–30 分鐘後再試（字幕需時間生成）\n"
+                    "2️⃣ 或在本機執行：`python download_helper.py` 後按「⚙️ 僅重新分析」"
                 )
             await set_step(0, "✅")
 
-        # Step 1: Transcribe
-        await set_step(1, "🔄")
-        transcripts = await loop.run_in_executor(None, m.step_transcribe)
-        empty_chs = [k for k, v in transcripts.items() if not v]
-        if empty_chs:
-            await set_step(1, "❌")
-            raise RuntimeError(
-                f"語音辨識失敗：{', '.join(empty_chs)} 的逐字稿為空\n"
-                "可能原因：音檔損壞、音訊過短或全為靜音。"
-            )
-        await set_step(1, "✅")
+        # Step 1: 語音辨識（字幕 API 成功時自動跳過）
+        captions_fetched = all(
+            v.get("transcript_source") == "youtube_captions"
+            for v in download_results.values()
+        ) if download_results else False
+
+        if captions_fetched:
+            # 字幕 API 已取得逐字稿並存檔，直接跳過 Whisper
+            steps[1] = steps[1].replace("⬜", "⏭️")
+            await progress_msg.edit(embed=_build_progress_embed(steps))
+            transcripts = {k: v.get("transcript") for k, v in download_results.items()}
+        else:
+            await set_step(1, "🔄")
+            transcripts = await loop.run_in_executor(None, m.step_transcribe)
+            empty_chs = [k for k, v in transcripts.items() if not v]
+            if empty_chs:
+                await set_step(1, "❌")
+                raise RuntimeError(
+                    f"語音辨識失敗：{', '.join(empty_chs)} 的逐字稿為空\n"
+                    "可能原因：音檔損壞、音訊過短或全為靜音。"
+                )
+            await set_step(1, "✅")
 
         # Step 2: Preprocess
         await set_step(2, "🔄")
