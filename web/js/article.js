@@ -80,10 +80,10 @@ function render(data) {
   const dateStr = data.meta?.date || new Date().toISOString().slice(0, 10);
 
   // <title>
-  document.title = `${article.title} | 財經雷達`;
+  document.title = '財經雷達';
 
-  // Header date
-  document.getElementById('header-date').textContent = formatDateTW(dateStr);
+  // Header date — 永遠顯示今天的日期
+  document.getElementById('header-date').textContent = formatDateTW(new Date().toLocaleDateString('sv-SE'));
 
   // Kicker
   document.getElementById('kicker-date').textContent = formatDateTW(dateStr);
@@ -99,7 +99,7 @@ function render(data) {
   renderBody(article, data.investor_reminder, data.top5_news || []);
 
   // Sidebar
-  renderSidebar(data.comparison, data.top5_news || []);
+  renderSidebar(data.comparison, data.top5_news || [], data._relatedArticles || []);
 
   // Tags
   renderTags(article.tags);
@@ -141,7 +141,7 @@ function renderBody(article, reminder, top5) {
   el.innerHTML = html;
 }
 
-function renderSidebar(comparison, top5) {
+function renderSidebar(comparison, top5, relatedArticles = []) {
   const el = document.getElementById('sidebar');
   let html = '';
 
@@ -179,6 +179,32 @@ function renderSidebar(comparison, top5) {
       </div>`;
   }
 
+  // 推薦文章
+  if (relatedArticles.length) {
+    const currentDate = getDateKey();
+    const others = relatedArticles
+      .filter(a => (a.date || '').replace(/-/g, '') !== currentDate)
+      .slice(0, 5);
+    if (others.length) {
+      const items = others.map(a => {
+        const dateKey = (a.date || '').replace(/-/g, '');
+        const d = new Date((a.date || '') + 'T00:00:00');
+        const dateLabel = a.date
+          ? `${d.getMonth() + 1}/${d.getDate()}`
+          : '';
+        return `<a class="related-article-item" href="/article.html?date=${esc(dateKey)}">
+          <span class="related-date">${esc(dateLabel)}</span>
+          <span class="related-title">${esc(a.title || '每日市場速報')}</span>
+        </a>`;
+      }).join('');
+      html += `
+        <div class="sidebar-card">
+          <div class="sc-label">推薦文章</div>
+          <div class="related-articles">${items}</div>
+        </div>`;
+    }
+  }
+
   el.innerHTML = html;
 }
 
@@ -198,6 +224,40 @@ function buildFallback(data) {
     ],
     tags: ['#台股', '#美股', '#財經雷達'],
   };
+}
+
+// ── 分享功能 ──────────────────────────────────────────────
+
+function initShare() {
+  const url = encodeURIComponent(location.href);
+
+  const lineBtn = document.getElementById('share-line');
+  if (lineBtn) {
+    lineBtn.href = `https://social-plugins.line.me/lineit/share?url=${url}`;
+  }
+
+  const fbBtn = document.getElementById('share-fb');
+  if (fbBtn) {
+    fbBtn.href = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+  }
+
+  const copyBtn = document.getElementById('share-copy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        const orig = copyBtn.innerHTML;
+        copyBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> 已複製`;
+        copyBtn.classList.add('copied');
+        setTimeout(() => {
+          copyBtn.innerHTML = orig;
+          copyBtn.classList.remove('copied');
+        }, 2000);
+      } catch {
+        prompt('複製以下連結：', location.href);
+      }
+    });
+  }
 }
 
 // ── AI Chat Drawer ────────────────────────────────────────
@@ -322,15 +382,28 @@ function initDrawer() {
 async function init() {
   initProgress();
   initDrawer();
+  initShare();
 
   try {
     const dateKey = getDateKey();
-    const data    = await fetchArticle(dateKey);
-    _articleContext = buildContext(data);
 
-    const resolvedKey = dateKey || (data.meta?.date || '').replace(/-/g, '');
+    // 並行載入文章與文章列表（用於推薦文章）
+    const [data, indexData] = await Promise.allSettled([
+      fetchArticle(dateKey),
+      fetch('/data/index.json').then(r => r.ok ? r.json() : []),
+    ]);
+
+    if (data.status === 'rejected') throw data.reason;
+
+    const article = data.value;
+    _articleContext = buildContext(article);
+
+    // 把文章列表附加到 data 供 render 使用
+    article._relatedArticles = indexData.status === 'fulfilled' ? (indexData.value || []) : [];
+
+    const resolvedKey = dateKey || (article.meta?.date || '').replace(/-/g, '');
     setTimeout(() => {
-      render(data);
+      render(article);
       loadCoverImage(resolvedKey);
     }, 250);
   } catch (err) {

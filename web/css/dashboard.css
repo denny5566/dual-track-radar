@@ -2,6 +2,9 @@
    財經雷達 — 個人儀表板專用樣式
    ============================================================ */
 
+/* 儀表板沒有 Ticker，header 貼頂 */
+.site-header { top: 0; }
+
 /* ── Auth Gate ── */
 .auth-gate {
   position: fixed;
@@ -24,10 +27,10 @@
 .auth-icon {
   width: 52px; height: 52px;
   border-radius: 50%;
-  background: rgba(79, 70, 229, 0.12);
-  border: 1px solid rgba(79, 70, 229, 0.25);
+  background: var(--accent-dim);
+  border: 1px solid rgba(229, 64, 42, 0.25);
   display: flex; align-items: center; justify-content: center;
-  color: #818cf8;
+  color: var(--accent);
   margin: 0 auto 1.25rem;
 }
 .auth-card h2 {
@@ -54,10 +57,10 @@
   margin-bottom: 0.75rem;
   transition: border-color var(--t);
 }
-.auth-input:focus { border-color: #818cf8; }
+.auth-input:focus { border-color: var(--accent); }
 .auth-btn {
   width: 100%;
-  background: #4f46e5;
+  background: var(--accent);
   color: #fff;
   font-weight: 600;
   font-size: 0.9rem;
@@ -67,7 +70,7 @@
   cursor: pointer;
   transition: background var(--t), transform var(--t);
 }
-.auth-btn:hover { background: #4338ca; transform: translateY(-1px); }
+.auth-btn:hover { background: #c9361e; transform: translateY(-1px); }
 .auth-error {
   font-size: 0.8rem;
   color: #fca5a5;
@@ -85,9 +88,9 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #818cf8;
-  background: rgba(79, 70, 229, 0.12);
-  border: 1px solid rgba(79, 70, 229, 0.25);
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(229, 64, 42, 0.25);
   padding: 0.2rem 0.7rem;
   border-radius: 99px;
 }
@@ -239,16 +242,16 @@
 .stat-setup-hint {
   margin-top: 1rem;
   padding: 0.65rem 0.85rem;
-  background: rgba(79, 70, 229, 0.06);
-  border: 1px dashed rgba(79, 70, 229, 0.2);
+  background: rgba(229, 64, 42, 0.06);
+  border: 1px dashed rgba(229, 64, 42, 0.2);
   border-radius: 6px;
   font-size: 0.78rem;
-  color: #818cf8;
+  color: var(--accent);
   line-height: 1.5;
 }
 .stat-setup-hint code {
   font-family: var(--mono);
-  background: rgba(79, 70, 229, 0.12);
+  background: var(--accent-dim);
   padding: 0.05rem 0.3rem;
   border-radius: 3px;
 }
@@ -311,9 +314,9 @@
 }
 .mining-tab:hover { color: var(--text-1); border-color: var(--text-2); }
 .mining-tab.active {
-  color: #818cf8;
-  background: rgba(79, 70, 229, 0.1);
-  border-color: rgba(79, 70, 229, 0.3);
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: rgba(229, 64, 42, 0.3);
 }
 .mining-source-pane { display: none; }
 .mining-source-pane.active { display: block; }
@@ -335,7 +338,7 @@
   outline: none;
   transition: border-color var(--t);
 }
-.mining-input:focus { border-color: #818cf8; }
+.mining-input:focus { border-color: var(--accent); }
 .mining-input::placeholder { color: var(--text-3); }
 
 .mining-fetch-btn {
@@ -343,15 +346,15 @@
   font-weight: 500;
   padding: 0.5rem 0.9rem;
   border-radius: 8px;
-  background: rgba(79, 70, 229, 0.12);
-  border: 1px solid rgba(79, 70, 229, 0.3);
-  color: #818cf8;
+  background: var(--accent-dim);
+  border: 1px solid rgba(229, 64, 42, 0.3);
+  color: var(--accent);
   cursor: pointer;
   font-family: var(--font);
   white-space: nowrap;
   transition: all var(--t);
 }
-.mining-fetch-btn:hover { background: rgba(79, 70, 229, 0.2); }
+.mining-fetch-btn:hover { background: rgba(229, 64, 42, 0.2); }
 .mining-fetch-btn.disabled { opacity: 0.4; cursor: not-allowed; }
 
 .mining-textarea {
@@ -369,14 +372,14 @@
   line-height: 1.6;
   transition: border-color var(--t);
 }
-.mining-textarea:focus { border-color: #818cf8; }
+.mining-textarea:focus { border-color: var(--accent); }
 .mining-textarea::placeholder { color: var(--text-3); }
 
 .mining-note {
   font-size: 0.8rem;
   color: var(--text-2);
-  background: rgba(79,70,229,0.05);
-  border: 1px dashed rgba(79,70,229,0.2);
+  background: rgba(229,64,42,0.05);
+  border: 1px dashed rgba(229,64,42,0.2);
   border-radius: 8px;
   padding: 0.75rem;
   margin-bottom: 0.75rem;
@@ -415,14 +418,14 @@
   font-weight: 600;
   padding: 0.55rem 1.1rem;
   border-radius: 8px;
-  background: #4f46e5;
+  background: var(--accent);
   color: #fff;
   border: none;
   cursor: pointer;
   font-family: var(--font);
   transition: background var(--t), transform var(--t);
 }
-.analyze-btn:hover { background: #4338ca; transform: translateY(-1px); }
+.analyze-btn:hover { background: #c9361e; transform: translateY(-1px); }
 .analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 .mining-result {
@@ -494,9 +497,9 @@
   text-align: left;
 }
 .dash-suggestion-btn:hover {
-  color: #818cf8;
-  border-color: rgba(79,70,229,0.4);
-  background: rgba(79,70,229,0.07);
+  color: var(--accent);
+  border-color: rgba(229,64,42,0.4);
+  background: rgba(229,64,42,0.07);
 }
 .dash-chat-footer {
   display: flex;
