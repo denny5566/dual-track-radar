@@ -13,6 +13,7 @@ AI 雙軌財經情報雷達 — 主管線（PRD v2）
 用法：
   python main.py                          # 完整流程（含寄信）
   python main.py --skip-download          # 跳過下載（使用已有音檔）
+  python main.py --skip-download --video-date 2026-04-16
   python main.py --skip-transcribe        # 跳過轉錄（使用已有逐字稿）
   python main.py --skip-preprocess        # 跳過前處理（直接送原始逐字稿）
   python main.py --skip-cards             # 跳過圖片生成
@@ -490,12 +491,13 @@ def main() -> None:
     parser.add_argument("--skip-audio",       action="store_true", help="跳過旁白音檔生成")
     parser.add_argument("--no-email",         action="store_true", help="不寄送 Email")
     parser.add_argument("--no-cleanup",       action="store_true", help="保留暫存檔案（debug）")
+    parser.add_argument("--video-date",       help="指定分析日期（YYYY-MM-DD），供 skip-download / 指定舊片測試使用")
     args = parser.parse_args()
 
     log.info("=== 雙軌財經情報雷達啟動 ===  env=%s  model=%s", ENV, CLAUDE_MODEL)
 
     # Step 1
-    video_date: str | None = None
+    video_date: str | None = args.video_date
     if not args.skip_download:
         download_results = step_download()
         # 從下載結果擷取影片日期（優先群益，其次游庭澔）
