@@ -25,7 +25,6 @@ import re
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 
 from config import CHANNELS, TRANSCRIPT_DIR, YOUTUBE_API_KEY
 
@@ -112,53 +111,56 @@ def _get_latest_videos(channel_id: str, max_results: int = 15) -> list[tuple[str
 
 def _fetch_youtube_transcript(video_id: str, channel_name: str) -> str | None:
     """
-    用 youtube-transcript-api 取得影片中文字幕。
-    優先順序：繁中 → 繁中（另一代碼）→ 簡中 → 任何中文（含自動生成）。
+    用 youtube-transcript-api v1.x 取得影片中文字幕。
+    v1.x API：fetch()（直接取特定語言）、list()（列出所有可用字幕）。
 
     字幕端點（timedtext API）和影片下載端點不同，
     在 Oracle Cloud VM 等 datacenter IP 通常不受 bot 偵測封鎖。
     """
     try:
-        from youtube_transcript_api import (
-            NoTranscriptFound,
-            TranscriptsDisabled,
-            YouTubeTranscriptApi,
-        )
+        from youtube_transcript_api import YouTubeTranscriptApi
     except ImportError:
         log.error("缺少 youtube-transcript-api，請執行：pip install youtube-transcript-api")
         return None
 
-    lang_preferences = [["zh-TW"], ["zh-Hant"], ["zh-Hans"], ["zh"]]
-
-    for langs in lang_preferences:
-        try:
-            items = YouTubeTranscriptApi.get_transcript(video_id, languages=langs)
-            text = " ".join(t["text"].strip() for t in items if t.get("text"))
+    def _items_to_text(items) -> str:
+        """相容 dict（舊版）和 object（新版）兩種格式。"""
+        parts = []
+        for t in items:
+            text = t["text"] if isinstance(t, dict) else getattr(t, "text", "")
             if text:
-                log.info("[%s] 字幕取得成功（語言：%s）：%d 字", channel_name, langs[0], len(text))
+                parts.append(text.strip())
+        return " ".join(parts)
+
+    # ── 方法 1：直接 fetch 指定語言（v1.x 推薦方式）──────────────────────────
+    for langs in [["zh-TW"], ["zh-Hant"], ["zh-Hans"], ["zh"],
+                  ["zh-TW", "zh-Hant", "zh-Hans", "zh"]]:
+        try:
+            items = YouTubeTranscriptApi.fetch(video_id, languages=langs)
+            text = _items_to_text(items)
+            if text:
+                log.info("[%s] 字幕取得成功（語言：%s）：%d 字", channel_name, langs, len(text))
                 return text
-        except NoTranscriptFound:
-            continue
-        except TranscriptsDisabled:
-            log.warning("[%s] 影片 %s 字幕已停用", channel_name, video_id)
-            return None
         except Exception as e:
-            log.debug("[%s] 字幕語言 %s 失敗：%s", channel_name, langs, e)
+            log.debug("[%s] fetch langs=%s 失敗：%s", channel_name, langs, e)
             continue
 
-    # 最後手段：列出所有字幕，找第一個中文（含自動生成）
+    # ── 方法 2：列出所有字幕，找中文（含自動生成）────────────────────────────
     try:
-        from youtube_transcript_api import YouTubeTranscriptApi
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript_list = YouTubeTranscriptApi.list(video_id)
+        available = []
         for t in transcript_list:
-            if any(lc in t.language_code for lc in ["zh", "zh-TW", "zh-Hans", "zh-Hant"]):
-                items = t.fetch()
-                text = " ".join(item["text"].strip() for item in items if item.get("text"))
+            lang_code = t.language_code if hasattr(t, "language_code") else str(t)
+            available.append(lang_code)
+            if any(lc in lang_code for lc in ["zh", "zh-TW", "zh-Hans", "zh-Hant"]):
+                fetched = t.fetch() if hasattr(t, "fetch") else t
+                text = _items_to_text(fetched)
                 if text:
-                    log.info("[%s] 自動生成字幕：%d 字（語言代碼：%s）", channel_name, len(text), t.language_code)
+                    log.info("[%s] 找到中文字幕（%s）：%d 字", channel_name, lang_code, len(text))
                     return text
+        log.warning("[%s] 無中文字幕，可用語言：%s", channel_name, available)
     except Exception as e:
-        log.warning("[%s] 所有字幕均不可用（video_id=%s）：%s", channel_name, video_id, e)
+        log.warning("[%s] 字幕列表取得失敗（video_id=%s）：%s", channel_name, video_id, e)
 
     return None
 
