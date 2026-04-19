@@ -132,11 +132,14 @@ def _fetch_youtube_transcript(video_id: str, channel_name: str) -> str | None:
                 parts.append(text.strip())
         return " ".join(parts)
 
+    # v1.x 需先建立 instance
+    api = YouTubeTranscriptApi()
+
     # ── 方法 1：直接 fetch 指定語言（v1.x 推薦方式）──────────────────────────
     for langs in [["zh-TW"], ["zh-Hant"], ["zh-Hans"], ["zh"],
                   ["zh-TW", "zh-Hant", "zh-Hans", "zh"]]:
         try:
-            items = YouTubeTranscriptApi.fetch(video_id, languages=langs)
+            items = api.fetch(video_id, languages=langs)
             text = _items_to_text(items)
             if text:
                 log.info("[%s] 字幕取得成功（語言：%s）：%d 字", channel_name, langs, len(text))
@@ -147,7 +150,7 @@ def _fetch_youtube_transcript(video_id: str, channel_name: str) -> str | None:
 
     # ── 方法 2：列出所有字幕，找中文（含自動生成）────────────────────────────
     try:
-        transcript_list = YouTubeTranscriptApi.list(video_id)
+        transcript_list = api.list(video_id)
         available = []
         for t in transcript_list:
             lang_code = t.language_code if hasattr(t, "language_code") else str(t)
