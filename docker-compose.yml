@@ -9,6 +9,7 @@ services:
       # 持久化資料庫與輸出 JSON（容器重建不遺失）
       - ./data:/app/data
       - ./output:/app/output
+      - ./cookies.txt:/app/cookies.txt       # YouTube cookies（解決 bot 偵測）
       # pipeline 寫入 web/public/data，讓 web service 能即時讀到
       - ./web/public/data:/app/web/public/data
       - ./web/public/images:/app/web/public/images
