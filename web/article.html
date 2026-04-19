@@ -16,29 +16,13 @@
   <!-- Reading Progress -->
   <div id="reading-progress" class="reading-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
 
-  <!-- Live Ticker -->
+  <!-- Live Market Ticker -->
   <div class="ticker-wrap">
-    <div class="tradingview-widget-container">
-      <div class="tradingview-widget-container__widget"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
-      {
-        "symbols": [
-          {"description":"台股加權","proName":"TWSE:TAIEX"},
-          {"description":"S&P 500","proName":"FOREXCOM:SPXUSD"},
-          {"description":"Nasdaq","proName":"FOREXCOM:NSXUSD"},
-          {"description":"道瓊","proName":"FOREXCOM:DJI"},
-          {"description":"費半","proName":"NASDAQ:SOX"},
-          {"description":"台積電 ADR","proName":"NYSE:TSM"},
-          {"description":"黃金","proName":"COMEX:GC1!"},
-          {"description":"WTI 原油","proName":"NYMEX:CL1!"}
-        ],
-        "showSymbolLogo":true,
-        "isTransparent":true,
-        "displayMode":"adaptive",
-        "colorTheme":"dark",
-        "locale":"zh_TW"
-      }
-      </script>
+    <div class="ticker-badge">LIVE</div>
+    <div class="ticker-scroll-area">
+      <div class="ticker-track" id="ticker-track">
+        <div class="ticker-placeholder">市場數據載入中…</div>
+      </div>
     </div>
   </div>
 

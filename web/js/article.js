@@ -377,12 +377,56 @@ function initDrawer() {
   });
 }
 
+// ── Market Ticker ──────────────────────────────────────
+
+function fmtPrice(price, decimals = 2) {
+  if (price == null || isNaN(price)) return '—';
+  return price.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+function renderTicker(items) {
+  const track = document.getElementById('ticker-track');
+  if (!track || !items?.length) return;
+
+  const html = items.map(item => {
+    const up   = item.change >= 0;
+    const sign = up ? '+' : '';
+    const cls  = up ? 'up' : 'down';
+    return `
+      <div class="ticker-item">
+        <span class="ti-name">${esc(item.name)}</span>
+        <span class="ti-price">${fmtPrice(item.price)}</span>
+        <span class="ti-change ${cls}">${sign}${item.change.toFixed(2)}</span>
+        <span class="ti-sep">·</span>
+        <span class="ti-pct ${cls}">${sign}${item.changePct.toFixed(2)}%</span>
+      </div>
+    `;
+  }).join('');
+
+  track.innerHTML = html + html;
+}
+
+async function loadMarketData() {
+  try {
+    const res = await fetch('/api/market-data');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.ticker?.length) renderTicker(data.ticker);
+  } catch (err) {
+    console.warn('Ticker load failed:', err);
+  }
+}
+
 // ── Init ─────────────────────────────────────────────
 
 async function init() {
   initProgress();
   initDrawer();
   initShare();
+  loadMarketData();
 
   try {
     const dateKey = getDateKey();
