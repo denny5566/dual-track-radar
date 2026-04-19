@@ -21,8 +21,8 @@ log = logging.getLogger(__name__)
 def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword: str = "") -> tuple[str, str] | None:
     """
     從頻道 /streams 頁面取得最新一支「已完成」的直播存檔 URL。
-    跳過尚未開始的預約直播。
-    若指定 title_keyword，只考慮標題含有該關鍵字的影片。
+    只發一次 flat extract 請求，避免多次請求觸發 YouTube bot 偵測。
+    若指定 title_keyword，優先取標題含有該關鍵字的影片；找不到時 fallback 取最新一支。
     """
     import os
     _cookie_opts = {"cookiefile": YTDLP_COOKIE_FILE} if YTDLP_COOKIE_FILE and os.path.exists(YTDLP_COOKIE_FILE) else {}
@@ -30,60 +30,55 @@ def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword:
         "quiet": False,
         "no_warnings": False,
         "extract_flat": "in_playlist",
-        "playlistend": 10,          # 多抓幾支以確保能找到符合關鍵字的影片
+        "playlistend": 15,
         "extractor_args": {
-            "youtube": {"player_client": ["ios", "android", "web"]},
+            "youtube": {"player_client": ["mweb", "ios", "android", "web"]},
         },
         **_cookie_opts,
     }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(channel_url, download=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(channel_url, download=False)
+    except Exception as exc:
+        log.error("[%s] 頻道播放清單抓取失敗：%s", channel_name, exc)
+        return None
 
     if not info or not info.get("entries"):
         log.warning("[%s] 無法取得播放清單", channel_name)
         return None
 
-    for entry in info["entries"]:
-        if not entry:
-            continue
-        video_id = entry.get("id") or entry.get("url", "")
-        title = entry.get("title", "")
-        video_url = f"https://www.youtube.com/watch?v={video_id}"
-
-        # 關鍵字過濾
-        if title_keyword and title_keyword not in title:
-            log.info("[%s] 跳過（標題不符）：%s", channel_name, title)
-            continue
-
-        # 快速檢查是否已完成（嘗試取得影片資訊）
-        check_opts = {
-            "quiet": False,
-            "no_warnings": False,
-            "skip_download": True,
-            "extractor_args": {
-                "youtube": {"player_client": ["ios", "android", "web"]},
-            },
-            **_cookie_opts,
-        }
-        try:
-            with yt_dlp.YoutubeDL(check_opts) as ydl:
-                meta = ydl.extract_info(video_url, download=False)
-            if not meta:
-                log.warning("[%s] 無法取得影片資訊，跳過：%s", channel_name, title)
+    def _pick(entries: list, keyword: str) -> tuple[str, str] | None:
+        """從 entries 挑選第一支符合條件的已完成影片（只用 flat extract 資料，不額外發請求）。"""
+        for entry in entries:
+            if not entry:
                 continue
-            # 預約直播的 live_status 是 "is_upcoming"，已完成是 "was_live" 或 None
-            live_status = meta.get("live_status", "")
+            video_id = entry.get("id") or ""
+            title    = entry.get("title", "")
+            if not video_id:
+                continue
+            # flat extract 裡 live_status 有時已填入，可直接判斷
+            live_status = entry.get("live_status", "")
             if live_status in ("is_upcoming", "is_live"):
                 log.info("[%s] 跳過（%s）：%s", channel_name, live_status, title)
                 continue
+            if keyword and keyword not in title:
+                log.info("[%s] 跳過（標題不符）：%s", channel_name, title)
+                continue
             log.info("[%s] 找到最新存檔：%s", channel_name, title)
-            return video_url, title
-        except Exception as exc:
-            log.warning("[%s] 檢查影片失敗，跳過：%s（%s）", channel_name, title, exc)
-            continue
+            return f"https://www.youtube.com/watch?v={video_id}", title
+        return None
 
-    log.warning("[%s] 找不到符合條件的直播存檔（關鍵字：%s）", channel_name, title_keyword)
-    return None
+    result = _pick(info["entries"], title_keyword)
+
+    # 關鍵字無匹配時 fallback：取最新一支已完成的存檔
+    if result is None and title_keyword:
+        log.warning("[%s] 關鍵字「%s」無匹配，改取最新一支存檔", channel_name, title_keyword)
+        result = _pick(info["entries"], "")
+
+    if result is None:
+        log.warning("[%s] 找不到可下載的直播存檔", channel_name)
+
+    return result
 
 
 def _ffmpeg_convert(src: Path, dst: Path) -> bool:
@@ -171,7 +166,7 @@ def download_specific_url(channel_key: str, video_url: str) -> dict:
         "no_warnings": False,
         "skip_download": True,
         "extractor_args": {
-            "youtube": {"player_client": ["ios", "android", "web"]},
+            "youtube": {"player_client": ["mweb", "ios", "android"]},
         },
         **_cookie_opts,
     }

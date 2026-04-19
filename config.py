@@ -112,10 +112,10 @@ YTDLP_OPTS_AUDIO = {
     "retries": 3,                               # 失敗時快速回報，不無限重試
     "fragment_retries": 3,
     "socket_timeout": 30,                       # socket 超時（秒）
-    # 使用 iOS / Android 客戶端繞過 YouTube bot 偵測
+    # 使用 mweb / iOS / Android 客戶端繞過 YouTube bot 偵測（mweb 限制較少）
     "extractor_args": {
         "youtube": {
-            "player_client": ["ios", "android", "web"],
+            "player_client": ["mweb", "ios", "android"],
         },
     },
     **({"cookiefile": YTDLP_COOKIE_FILE} if YTDLP_COOKIE_FILE and __import__("os").path.exists(YTDLP_COOKIE_FILE) else {}),
