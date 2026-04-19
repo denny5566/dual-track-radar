@@ -12,10 +12,23 @@ from pathlib import Path
 
 import yt_dlp
 
-from config import AUDIO_DIR, CHANNELS, FFMPEG_LOCATION, YTDLP_COOKIE_FILE, YTDLP_OPTS_AUDIO, YTDLP_USE_OAUTH2
+from config import (
+    AUDIO_DIR,
+    CHANNELS,
+    FFMPEG_LOCATION,
+    YTDLP_COOKIE_FILE,
+    YTDLP_EXTRACTOR_ARGS,
+    YTDLP_OPTS_AUDIO,
+    YTDLP_USE_OAUTH2,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
+
+
+def _drop_cookiefile(opts: dict) -> dict:
+    """回傳移除 cookiefile 後的 yt-dlp 選項，用於舊影片 fallback。"""
+    return {k: v for k, v in opts.items() if k != "cookiefile"}
 
 
 def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword: str = "") -> tuple[str, str, str | None] | None:
@@ -32,11 +45,9 @@ def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword:
         "no_warnings": False,
         "extract_flat": "in_playlist",
         "playlistend": 15,
-        "extractor_args": {
-            "youtube": {"player_client": ["mweb", "ios", "android", "web"]},
-        },
         **_cookie_opts,
         **_oauth2_opts,
+        **({"extractor_args": YTDLP_EXTRACTOR_ARGS} if YTDLP_EXTRACTOR_ARGS else {}),
     }
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -120,26 +131,29 @@ def _download_audio(video_url: str, out_path: Path, channel_name: str) -> bool:
         **YTDLP_OPTS_AUDIO,
         "outtmpl": str(raw_path),
     }
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([video_url])
-    except Exception as exc:
-        log.error("[%s] 下載失敗：%s", channel_name, exc)
 
-    # yt-dlp postprocessor succeeded
-    if out_path.exists():
-        log.info("[%s] 音檔已儲存：%s", channel_name, out_path)
-        return True
+    attempts = [("預設", opts)]
+    if opts.get("cookiefile"):
+        attempts.append(("不帶 cookies fallback", _drop_cookiefile(opts)))
 
-    # Fallback: postprocessor failed on Windows, convert manually
-    if raw_path.exists():
-        log.warning("[%s] yt-dlp 後處理失敗，嘗試手動轉換...", channel_name)
-        if _ffmpeg_convert(raw_path, out_path):
-            log.info("[%s] 手動轉換成功：%s", channel_name, out_path)
-            return True
-        log.error("[%s] 手動轉換也失敗", channel_name)
-    else:
-        log.error("[%s] 下載後音檔不存在：%s", channel_name, raw_path)
+    for attempt_name, attempt_opts in attempts:
+        try:
+            with yt_dlp.YoutubeDL(attempt_opts) as ydl:
+                ydl.download([video_url])
+        except Exception as exc:
+            log.error("[%s] %s 下載失敗：%s", channel_name, attempt_name, exc)
+        else:
+            if out_path.exists():
+                log.info("[%s] 音檔已儲存：%s（%s）", channel_name, out_path, attempt_name)
+                return True
+            if raw_path.exists():
+                log.warning("[%s] %s 後處理失敗，嘗試手動轉換...", channel_name, attempt_name)
+                if _ffmpeg_convert(raw_path, out_path):
+                    log.info("[%s] 手動轉換成功：%s（%s）", channel_name, out_path, attempt_name)
+                    return True
+                log.error("[%s] 手動轉換也失敗（%s）", channel_name, attempt_name)
+
+    log.error("[%s] 下載後音檔不存在：%s", channel_name, raw_path)
     return False
 
 
@@ -178,28 +192,30 @@ def download_specific_url(channel_key: str, video_url: str) -> dict:
         "quiet": False,
         "no_warnings": False,
         "skip_download": True,
-        "extractor_args": {
-            "youtube": {"player_client": ["mweb", "ios", "android"]},
-        },
         **_cookie_opts,
+        **({"extractor_args": YTDLP_EXTRACTOR_ARGS} if YTDLP_EXTRACTOR_ARGS else {}),
     }
     import re as _re
     title = video_url
     video_date: str | None = None
-    try:
-        with yt_dlp.YoutubeDL(check_opts) as ydl:
-            meta = ydl.extract_info(video_url, download=False)
-        if meta:
-            title = meta.get("title", video_url)
-            raw_date = meta.get("upload_date", "") or ""
-            if len(raw_date) == 8 and raw_date.isdigit():
-                video_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
-            else:
-                m = _re.search(r'(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})', title)
-                if m:
-                    video_date = f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
-    except Exception:
-        pass
+    for meta_opts in [check_opts, _drop_cookiefile(check_opts) if check_opts.get("cookiefile") else None]:
+        if not meta_opts:
+            continue
+        try:
+            with yt_dlp.YoutubeDL(meta_opts) as ydl:
+                meta = ydl.extract_info(video_url, download=False)
+            if meta:
+                title = meta.get("title", video_url)
+                raw_date = meta.get("upload_date", "") or ""
+                if len(raw_date) == 8 and raw_date.isdigit():
+                    video_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+                else:
+                    m = _re.search(r'(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})', title)
+                    if m:
+                        video_date = f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+                break
+        except Exception:
+            continue
 
     log.info("[%s] 指定下載：%s（影片日期：%s）", ch["name"], title, video_date or "未知")
     success = _download_audio(video_url, out_path, ch["name"])

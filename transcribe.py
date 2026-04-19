@@ -181,6 +181,10 @@ def transcribe_audio(channel_key: str, audio_path: str | Path | None = None) -> 
     audio_file = Path(audio_path) if audio_path else AUDIO_DIR / ch["audio_filename"]
 
     if not audio_file.exists():
+        existing = load_transcript(channel_key)
+        if existing:
+            log.info("[%s] 無音檔，沿用既有逐字稿：%s", ch["name"], TRANSCRIPT_DIR / f"{channel_key}.txt")
+            return existing
         log.error("[%s] 音檔不存在：%s", channel_key, audio_file)
         return None
 

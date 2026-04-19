@@ -3,6 +3,7 @@ AI 雙軌財經情報雷達 — 全域設定
 """
 
 import os
+import shutil
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -97,13 +98,38 @@ IG_VIDEO_BASE_URL = os.getenv("IG_VIDEO_BASE_URL", "")
 
 # ── yt-dlp 選項 ─────────────────────────────────────────────────────────────
 # cookies.txt 路徑（從瀏覽器匯出的 Netscape 格式，解決 YouTube bot 偵測）
-YTDLP_COOKIE_FILE = os.getenv("YTDLP_COOKIE_FILE", "/app/cookies.txt")
+def _resolve_cookie_file() -> str | None:
+    """優先使用環境變數，其次自動偵測專案內 cookies.txt 與容器路徑。"""
+    candidates = [
+        os.getenv("YTDLP_COOKIE_FILE", "").strip(),
+        str(BASE_DIR / "cookies.txt"),
+        "/app/cookies.txt",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return str(Path(candidate))
+    return None
+
+
+YTDLP_COOKIE_FILE = _resolve_cookie_file()
 
 # OAuth2 Device Code flow（yt-dlp-youtube-oauth2 插件）
 # 設 YTDLP_USE_OAUTH2=true 後，需在 VM 上執行一次互動式授權：
 #   docker exec -it <discord-bot容器> yt-dlp --username oauth2 --password '' https://www.youtube.com/watch?v=jNQXAC9IVRw
 #   按提示在手機/電腦完成 Google 帳號授權，token 存於 /root/.cache/yt-dlp/
 YTDLP_USE_OAUTH2 = os.getenv("YTDLP_USE_OAUTH2", "false").lower() == "true"
+YTDLP_PLAYER_CLIENTS = [
+    client.strip()
+    for client in os.getenv("YTDLP_PLAYER_CLIENTS", "").split(",")
+    if client.strip()
+]
+YTDLP_EXTRACTOR_ARGS = (
+    {"youtube": {"player_client": YTDLP_PLAYER_CLIENTS}}
+    if YTDLP_PLAYER_CLIENTS
+    else {}
+)
+_NODE_PATH = shutil.which("node")
+YTDLP_JS_RUNTIMES = {"node": {"path": _NODE_PATH}} if _NODE_PATH else {}
 
 YTDLP_OPTS_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
@@ -119,14 +145,10 @@ YTDLP_OPTS_AUDIO = {
     "retries": 3,                               # 失敗時快速回報，不無限重試
     "fragment_retries": 3,
     "socket_timeout": 30,                       # socket 超時（秒）
-    # 使用 mweb / iOS / Android 客戶端繞過 YouTube bot 偵測（mweb 限制較少）
-    "extractor_args": {
-        "youtube": {
-            "player_client": ["mweb", "ios", "android"],
-        },
-    },
     # OAuth2：啟用時以「智慧電視」身份認證，有機會繞過 datacenter IP 封鎖
     **({"username": "oauth2", "password": ""} if YTDLP_USE_OAUTH2 else {}),
-    **({"cookiefile": YTDLP_COOKIE_FILE} if YTDLP_COOKIE_FILE and __import__("os").path.exists(YTDLP_COOKIE_FILE) else {}),
+    **({"cookiefile": YTDLP_COOKIE_FILE} if YTDLP_COOKIE_FILE else {}),
+    **({"extractor_args": YTDLP_EXTRACTOR_ARGS} if YTDLP_EXTRACTOR_ARGS else {}),
+    **({"js_runtimes": YTDLP_JS_RUNTIMES} if YTDLP_JS_RUNTIMES else {}),
     **({"ffmpeg_location": FFMPEG_LOCATION} if FFMPEG_LOCATION else {}),
 }

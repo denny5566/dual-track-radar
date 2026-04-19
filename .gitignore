@@ -24,6 +24,7 @@ video/node_modules/
 # Log 檔
 *.log
 output_test.log
+.upload_summary
 
 # 資料庫與測試資料（本地產生，不上傳）
 data/radar.db

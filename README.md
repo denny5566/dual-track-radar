@@ -48,6 +48,7 @@ copy .env.example .env
 ```
 ANTHROPIC_API_KEY=你的 Claude API Key
 WHISPER_MODEL=base
+YTDLP_PLAYER_CLIENTS=
 
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -58,6 +59,8 @@ EMAIL_RECIPIENTS=收件人 Email
 ```
 
 > Gmail 需使用「應用程式密碼」，非登入密碼。開啟方式：Google 帳戶 → 安全性 → 兩步驟驗證 → 應用程式密碼。
+
+`yt-dlp` 下載 YouTube 時，預設會使用它自己的 client 選擇邏輯。若你強制指定 `mweb/ios/android`，近年的 YouTube 常會要求 PO Token，反而更容易 403。只有在你已經準備好對應 token 或確認特定 client 較穩時，才建議設定 `YTDLP_PLAYER_CLIENTS`。
 
 ---
 
