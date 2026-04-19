@@ -1,200 +1,272 @@
 # AI 雙軌財經情報雷達
 
-自動監控兩大 YouTube 財經頻道，每日下載直播存檔、語音轉文字、Claude AI 交叉分析，產出報告圖片並寄送 Email。
-
-## 運作流程
-
-```
-YouTube 直播存檔（關鍵字過濾：群益早安 / 早晨財經速解讀）
-    ↓ yt-dlp 下載 mp3
-Whisper 語音轉文字
-    ↓
-Claude Sonnet（claude-sonnet-4-6）交叉分析
-    ↓
-Playwright 渲染 EDM banner（600×300 PNG）+ PDF 詳細報告
-    ↓
-Gmail 寄送（banner 內嵌於信件本文，PDF 作為附件）
-    ↓ 寄出後自動清除暫存檔
-```
+自動追蹤兩個 YouTube 財經頻道，取得逐字稿或音檔後完成分析，輸出網站資料、PDF、Banner、影片素材，並可透過 Discord 控制整條流程。
 
 監控頻道：
 - [群益期貨觀點](https://www.youtube.com/@i-view6024/streams)
 - [游庭澔的財經皓角](https://www.youtube.com/@yutinghaofinance/streams)
 
----
+## 核心流程
+
+```text
+GitHub Actions 預抓逐字稿
+        ↓
+YouTube 字幕 API
+        ↓
+yt-dlp 音檔下載 fallback
+        ↓
+Whisper / Groq 轉錄
+        ↓
+逐字稿前處理
+        ↓
+Claude 分析 + 新聞文章生成
+        ↓
+SQLite / 靜態 JSON / 網站資料
+        ↓
+Banner / PDF / 影片旁白 / 配圖
+        ↓
+Email / YouTube / Instagram / Discord 審核
+```
 
 ## 環境需求
 
 - Python 3.10+
-- [ffmpeg](https://ffmpeg.org/)（yt-dlp 與 Whisper 皆需要）
+- Node.js 20+
+- `ffmpeg`
+- Chromium for Playwright
 
----
-
-## 安裝
+本機安裝後建議先執行：
 
 ```bash
-git clone https://github.com/denny5566/dual-track-radar.git
-cd dual-track-radar
-
 pip install -r requirements.txt
 playwright install chromium
-
-# 複製設定檔並填入你的 API key 與 SMTP 資訊
-copy .env.example .env
 ```
 
-### .env 設定說明
+## .env 重點設定
 
-```
-ANTHROPIC_API_KEY=你的 Claude API Key
-WHISPER_MODEL=base
+至少要有這些：
+
+```env
+ANTHROPIC_API_KEY=...
+DISCORD_BOT_TOKEN=...
+DISCORD_OWNER_ID=...
+DISCORD_CHANNEL_ID=...
+YOUTUBE_API_KEY=...
+
+YTDLP_COOKIE_FILE=./cookies.txt
+YTDLP_USE_OAUTH2=false
 YTDLP_PLAYER_CLIENTS=
-
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=你的 Gmail
-SMTP_PASSWORD=Gmail 應用程式密碼
-EMAIL_FROM=你的 Gmail
-EMAIL_RECIPIENTS=收件人 Email
 ```
 
-> Gmail 需使用「應用程式密碼」，非登入密碼。開啟方式：Google 帳戶 → 安全性 → 兩步驟驗證 → 應用程式密碼。
+說明：
+- `YTDLP_COOKIE_FILE=./cookies.txt`：固定用專案根目錄 cookies。
+- `YTDLP_PLAYER_CLIENTS=`：預設留空，交給 yt-dlp 自己選 client。
+- 程式會自動偵測 `node` 讓 yt-dlp 解 JavaScript challenge。
+- 若帶 cookies 下載舊影片失敗，現在會自動 fallback 成不帶 cookies 重試。
 
-`yt-dlp` 下載 YouTube 時，預設會使用它自己的 client 選擇邏輯。若你強制指定 `mweb/ios/android`，近年的 YouTube 常會要求 PO Token，反而更容易 403。只有在你已經準備好對應 token 或確認特定 client 較穩時，才建議設定 `YTDLP_PLAYER_CLIENTS`。
+## 最常用的三種操作方式
 
----
+### 1. Discord 日常操作
 
-## 使用方式
+最推薦的日常流程是直接從 Discord 控制面板操作。
 
-### 完整執行一次
+控制面板按鈕：
+- `🚀 立即執行完整流程`：VM 直接跑完整流程。
+- `📋 查看系統狀態`：看最近 5 筆執行紀錄。
+- `🖥️ 本機下載`：通知本機 `local_listener.py` 下載並上傳音檔。
+- `⚙️ 僅重新分析（不下載）`：對已在 VM 的音檔直接分析。
+- `📥 指定 URL 下載`：輸入特定 YouTube URL 直接跑。
+- `🗓️ 指定日期重跑`：依日期搜尋當天影片並重跑。
+- `🗑️ 清理逐字稿`：清除 `output/transcripts/`。
+- `🧹 清理全部暫存`：清除音檔、逐字稿、分析、卡片、旁白與影片暫存。
+
+分析完成後的審核按鈕：
+- `📧 送出 EDM`
+- `📰 發布新聞`
+- `🎬 發布影片`
+- `✏️ 修改建議`
+- `❌ 取消`
+
+### 2. 本機 CLI 測試
+
+完整跑一次：
 
 ```bash
 python main.py
 ```
 
-### 常用參數
+常用測試參數：
 
 ```bash
-python main.py --skip-download    # 使用已有音檔，跳過下載
-python main.py --skip-transcribe  # 使用已有逐字稿，跳過轉錄
-python main.py --skip-cards       # 跳過圖片生成
-python main.py --no-email         # 不寄信（測試用，暫存檔不會被刪除）
+python main.py --no-email --no-cleanup
+python main.py --skip-download --no-email --no-cleanup
+python main.py --skip-download --video-date 2026-04-16 --no-email --no-cleanup
 ```
 
----
+### 3. VM 正式環境測試
 
-## 定時自動執行（Windows 工作排程器）
-
-### 建立排程（週一至週五 10:00）
-
-```bash
-python setup_schedule.py
-```
-
-自訂時間：
-
-```bash
-python setup_schedule.py --time 08:30
-```
-
-### 查看目前狀態
-
-```bash
-python setup_schedule.py --status
-```
-
-### 刪除排程
-
-```bash
-python setup_schedule.py --delete
-```
-
-### 用 Windows 介面操作
-
-1. 按 `Win + R`，輸入 `taskschd.msc`，按 Enter
-2. 找到「雙軌財經情報雷達」
-3. 右鍵 → **停用** 或 **刪除**
-
----
-
-## Oracle Cloud VM 部署與更新
-
-### VM 資訊
-
-| 項目 | 值 |
-|------|-----|
-| IP | `129.150.39.175` |
-| 使用者 | `opc` |
-| SSH 金鑰 | `C:\Users\user\ssh\ssh-key-2026-04-16.key` |
-| 專案路徑 | `/home/opc/NTUAI_project` |
-
-### SSH 登入
-
-```powershell
-ssh -i "C:\Users\user\ssh\ssh-key-2026-04-16.key" opc@129.150.39.175
-```
-
-### 推送更新到 VM
-
-**本機（Windows）：**
-```bash
-git add <檔案>
-git commit -m "說明"
-git push ntuai master
-```
-
-**VM 上：**
 ```bash
 cd ~/NTUAI_project
-git pull
-```
-
-如果有改到 Docker 相關（Dockerfile、docker-compose.yml、requirements.txt）：
-```bash
-docker compose build && docker compose up -d
-```
-
-### VM 常用指令
-
-```bash
-# 查看服務狀態
-docker compose ps
-
-# 查看 Discord Bot log
-docker compose logs -f discord-bot
-
-# 重啟 Discord Bot
-docker compose restart discord-bot
-
-# 手動跑管線（測試）
 docker compose run --rm radar python main.py --no-email --no-cleanup
 ```
 
----
+如果是重跑歷史日期：
 
-## 注意事項
+```bash
+docker compose run --rm radar python main.py --skip-download --video-date 2026-04-16 --no-email --no-cleanup
+```
 
-- **電腦必須在排程時間時開機並登入**，排程才能執行。
-- 若 10 點時電腦關機，`StartWhenAvailable` 設定會在開機後自動補跑當天的任務。
-- `.env` 已加入 `.gitignore`，不會上傳到 GitHub。
-- 寄信成功後，音檔、逐字稿、banner 與 PDF 會自動刪除以釋放空間。
-- Anthropic API 偶爾會回傳 529（過載），程式會自動等待並重試最多 5 次。
+## YouTube 被 VM 擋住時的標準流程
 
----
+當 VM 抓不到影片時，改走這條：
+
+1. 本機執行監聽器
+
+```bash
+python local_listener.py
+```
+
+2. Discord 按 `🖥️ 本機下載`
+3. 等本機完成下載並自動上傳到 VM
+4. Discord 按 `⚙️ 僅重新分析（不下載）`
+
+本機也可以直接手動指定 URL 上傳：
+
+```bash
+python download_helper.py --cap "https://www.youtube.com/watch?v=..." --yu "https://www.youtube.com/watch?v=..."
+```
+
+## 指定日期重跑
+
+### Discord
+
+直接按 `🗓️ 指定日期重跑`，輸入 `YYYY-MM-DD`。
+
+系統會：
+- 用 YouTube API / yt-dlp 搜同日期影片
+- 優先取符合頻道關鍵字的影片
+- 自動跑完整分析流程
+
+### CLI
+
+如果音檔已經準備好：
+
+```bash
+python main.py --skip-download --video-date 2026-04-16 --no-email --no-cleanup
+```
+
+## 清理策略
+
+### 清理逐字稿
+
+只刪：
+- `output/transcripts/*`
+
+### 清理全部暫存
+
+會刪：
+- `output/audio/*`
+- `output/transcripts/*`
+- `output/analysis/*`
+- `output/cards/*`
+- `video/public/audio/*`
+- `video/public/news_*.jpg`
+- `video/public/opening_bg.jpg`
+- `video/public/insight_bg.jpg`
+- `video/public/ending_bg.jpg`
+- `video/out/*`
+- `web/public/videos/*`
+
+不會刪：
+- `data/radar.db`
+- `data/*.json`
+- `web/public/data/*.json`
+- `web/public/images/*.jpg`
+
+## VM 部署與同步
+
+本機推送：
+
+```bash
+git add .
+git commit -m "message"
+git push ntuai master
+```
+
+VM 更新：
+
+```bash
+cd ~/NTUAI_project
+git pull --ff-only origin master
+```
+
+若有 Docker / requirements / Playwright 相關更新，建議重建：
+
+```bash
+docker compose build radar
+docker compose build discord-bot
+docker compose up -d discord-bot web
+```
+
+## VM 常用指令
+
+```bash
+docker compose ps
+docker compose logs -f discord-bot
+docker compose run --rm radar python main.py --no-email --no-cleanup
+docker compose run --rm radar playwright install chromium
+```
+
+## 常見問題
+
+### 1. Discord 按了完整流程，但 VM 下載失敗
+
+代表字幕 API 沒拿到，VM 又被 YouTube 擋了。請改走：
+
+```text
+本機開 local_listener.py
+→ Discord 按「🖥️ 本機下載」
+→ Discord 按「⚙️ 僅重新分析（不下載）」
+```
+
+### 2. 指定舊影片下載失敗
+
+現在程式會自動先帶 cookies，再 fallback 不帶 cookies。若仍失敗，通常是：
+- cookies 已失效
+- 該影片格式異常
+- YouTube 對該 client 做了限制
+
+### 3. Playwright 報找不到瀏覽器
+
+請在該環境重跑：
+
+```bash
+playwright install chromium
+```
+
+如果是 Docker 環境，請在容器內跑：
+
+```bash
+docker compose run --rm radar playwright install chromium
+```
 
 ## 專案結構
 
-```
-├── main.py            # 主管線
-├── monitor.py         # Step 1：YouTube 下載
-├── transcribe.py      # Step 2：Whisper 轉錄
-├── analyze.py         # Step 3：Claude 分析
-├── social_cards.py    # Step 4：圖片生成
-├── setup_schedule.py  # Windows 排程設定
-├── config.py          # 全域設定
-├── templates/
-│   ├── edm_banner.html    # EDM banner 模板（600×300）
-│   └── daily_report.html  # PDF 報告模板（A4）
-├── .env.example       # 設定範本
-└── requirements.txt
+```text
+main.py
+discord_bot.py
+download_helper.py
+local_listener.py
+monitor.py
+transcript_monitor.py
+transcribe.py
+analyze.py
+generate_article.py
+social_cards.py
+generate_audio.py
+generate_assets.py
+config.py
+templates/
+web/
+video/
 ```

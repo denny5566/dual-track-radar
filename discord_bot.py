@@ -141,6 +141,7 @@ async def _run_pipeline_with_progress(
     skip_download: bool = False,
     revise_hint: str = "",
     url_overrides: dict[str, str] | None = None,
+    target_date: str | None = None,
 ) -> dict | None:
     """
     逐步執行管線，並在同一條 Embed 訊息中即時更新進度。
@@ -195,7 +196,7 @@ async def _run_pipeline_with_progress(
         if not skip_download:
             await set_step(0, "🔄")
             download_results = await loop.run_in_executor(
-                None, lambda: m.step_download(url_overrides=url_overrides)
+                None, lambda: m.step_download(url_overrides=url_overrides, target_date=target_date)
             )
             failed_chs = [k for k, v in download_results.items() if not v.get("success")]
             if failed_chs:
@@ -245,7 +246,7 @@ async def _run_pipeline_with_progress(
         # Step 3: Analyze
         await set_step(3, "🔄")
         # 從下載結果擷取影片日期，確保 meta.date 反映影片日期而非今天
-        _video_date: str | None = None
+        _video_date: str | None = target_date
         for _res in download_results.values():
             if _res.get("video_date"):
                 _video_date = _res["video_date"]
@@ -534,6 +535,35 @@ class _CustomUrlModal(discord.ui.Modal, title="📥 指定影片 URL"):
         await interaction.followup.send(f"✅ 指定 URL 執行完成（{hint}）：", embed=embed, view=view)
 
 
+class _DateRerunModal(discord.ui.Modal, title="🗓️ 指定日期重跑"):
+    target_date = discord.ui.TextInput(
+        label="日期（YYYY-MM-DD）",
+        style=discord.TextStyle.short,
+        required=True,
+        placeholder="2026-04-16",
+        max_length=10,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        global _pending_data
+        import re as _re
+
+        raw = self.target_date.value.strip()
+        if not _re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+            await interaction.response.send_message("⚠️ 日期格式錯誤，請輸入 `YYYY-MM-DD`。", ephemeral=True)
+            return
+
+        await interaction.response.defer(thinking=True)
+        data = await _run_pipeline_with_progress(interaction, target_date=raw)
+        if data is None:
+            return
+
+        _pending_data = data
+        embed = _build_report_embed(data)
+        view = _ReviewView()
+        await interaction.followup.send(f"✅ {raw} 指定日期重跑完成：", embed=embed, view=view)
+
+
 # ── 修改建議 Modal ────────────────────────────────────────────────────────────
 class _ReviseModal(discord.ui.Modal, title="✏️ 修改建議"):
     hint = discord.ui.TextInput(
@@ -746,10 +776,19 @@ class _ControlPanelView(discord.ui.View):
         await interaction.response.send_modal(_CustomUrlModal())
 
     @discord.ui.button(
+        label="🗓️ 指定日期重跑",
+        style=discord.ButtonStyle.primary,
+        custom_id="ctrl_date_rerun",
+        row=2,
+    )
+    async def date_rerun_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await interaction.response.send_modal(_DateRerunModal())
+
+    @discord.ui.button(
         label="🗑️ 清理逐字稿",
         style=discord.ButtonStyle.danger,
         custom_id="ctrl_cleanup_transcripts",
-        row=2,
+        row=3,
     )
     async def cleanup_transcripts_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
         await interaction.response.defer(thinking=True, ephemeral=True)
@@ -758,6 +797,25 @@ class _ControlPanelView(discord.ui.View):
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, m.step_cleanup_transcripts)
             await interaction.followup.send("✅ 逐字稿已清理完畢。", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ 清理失敗：{e}", ephemeral=True)
+
+    @discord.ui.button(
+        label="🧹 清理全部暫存",
+        style=discord.ButtonStyle.danger,
+        custom_id="ctrl_cleanup_all_temp",
+        row=3,
+    )
+    async def cleanup_all_temp_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        try:
+            import main as m
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, m.step_cleanup_all_temp)
+            await interaction.followup.send(
+                "✅ 已清理所有可重建暫存（音檔 / 逐字稿 / 分析 JSON / Banner / PDF / 影片旁白與渲染產物）。",
+                ephemeral=True,
+            )
         except Exception as e:
             await interaction.followup.send(f"❌ 清理失敗：{e}", ephemeral=True)
 
@@ -772,7 +830,9 @@ def _build_control_panel_embed() -> discord.Embed:
             "**🖥️ 本機下載** — 觸發本機下載音檔並上傳 VM（需先開啟 local_listener.py）\n"
             "**⚙️ 僅重新分析（不下載）** — 用已上傳的音檔直接分析\n"
             "**📥 指定 URL 下載** — 填入 YouTube 網址下載特定影片\n"
-            "**🗑️ 清理逐字稿** — 當天結束後手動清除逐字稿暫存\n\n"
+            "**🗓️ 指定日期重跑** — 依日期搜尋兩個頻道的當日影片並重跑\n"
+            "**🗑️ 清理逐字稿** — 清掉 output/transcripts/\n"
+            "**🧹 清理全部暫存** — 清掉音檔、逐字稿、分析、卡片、旁白與影片暫存\n\n"
             "💡 **YouTube 被封鎖時的流程**：\n"
             "本機執行 `python local_listener.py` → 按「🖥️ 本機下載」→ 按「⚙️ 僅重新分析」\n\n"
             f"Bot 上線時間：{datetime.now().strftime('%Y-%m-%d %H:%M')}"

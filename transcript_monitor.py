@@ -107,6 +107,11 @@ def _get_latest_videos(channel_id: str, max_results: int = 15) -> list[tuple[str
     return results
 
 
+def _is_replay_candidate(title: str) -> bool:
+    """排除尚未開播或純直播預告型標題。"""
+    return "直播" not in title
+
+
 # ── youtube-transcript-api ────────────────────────────────────────────────────
 
 def _fetch_youtube_transcript(video_id: str, channel_name: str) -> str | None:
@@ -173,6 +178,7 @@ def _fetch_youtube_transcript(video_id: str, channel_name: str) -> str | None:
 def monitor_and_fetch_transcript(
     channel_key: str,
     video_url_override: str | None = None,
+    target_date: str | None = None,
 ) -> dict:
     """
     對單一頻道執行字幕監控。
@@ -213,11 +219,22 @@ def monitor_and_fetch_transcript(
             return _fail_result(channel_key)
 
         keyword = ch.get("title_keyword", "")
-        matched = [(vid, t, d) for vid, t, d in videos if keyword and keyword in t]
+        matched = [
+            (vid, t, d) for vid, t, d in videos
+            if (not target_date or d == target_date) and keyword and keyword in t and _is_replay_candidate(t)
+        ]
 
         if not matched:
-            log.warning("[%s] 找不到含關鍵字「%s」的影片，取最新一支", ch_name, keyword)
-            matched = videos[:1]
+            if target_date:
+                log.warning("[%s] 找不到 %s 且含關鍵字「%s」的影片，回退到同日期最新一支", ch_name, target_date, keyword)
+                matched = [(vid, t, d) for vid, t, d in videos if d == target_date and _is_replay_candidate(t)][:1]
+            else:
+                log.warning("[%s] 找不到含關鍵字「%s」的影片，取最新一支", ch_name, keyword)
+                matched = [(vid, t, d) for vid, t, d in videos if _is_replay_candidate(t)][:1]
+
+        if not matched:
+            log.warning("[%s] 找不到符合日期 %s 的影片", ch_name, target_date)
+            return _fail_result(channel_key)
 
         video_id, title, video_date = matched[0]
 
@@ -271,6 +288,7 @@ def _fail_result(channel_key: str) -> dict:
 
 def run_dual_transcript_monitor(
     url_overrides: dict[str, str] | None = None,
+    target_date: str | None = None,
 ) -> dict[str, dict]:
     """同時對兩個頻道執行字幕監控（ThreadPoolExecutor）。"""
     results: dict[str, dict] = {}
@@ -280,6 +298,7 @@ def run_dual_transcript_monitor(
                 monitor_and_fetch_transcript,
                 key,
                 url_overrides.get(key) if url_overrides else None,
+                target_date,
             ): key
             for key in CHANNELS
         }

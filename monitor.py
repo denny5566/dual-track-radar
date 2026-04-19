@@ -31,7 +31,12 @@ def _drop_cookiefile(opts: dict) -> dict:
     return {k: v for k, v in opts.items() if k != "cookiefile"}
 
 
-def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword: str = "") -> tuple[str, str, str | None] | None:
+def _fetch_latest_stream_url(
+    channel_url: str,
+    channel_name: str,
+    title_keyword: str = "",
+    target_date: str | None = None,
+) -> tuple[str, str, str | None] | None:
     """
     從頻道 /streams 頁面取得最新一支「已完成」的直播存檔 URL。
     只發一次 flat extract 請求，避免多次請求觸發 YouTube bot 偵測。
@@ -60,9 +65,14 @@ def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword:
         log.warning("[%s] 無法取得播放清單", channel_name)
         return None
 
-    def _pick(entries: list, keyword: str) -> tuple[str, str, str | None] | None:
+    def _pick(entries: list, keyword: str, expected_date: str | None) -> tuple[str, str, str | None] | None:
         """從 entries 挑選第一支符合條件的已完成影片（只用 flat extract 資料，不額外發請求）。"""
         import re as _re
+        month_map = {
+            "january": "01", "february": "02", "march": "03", "april": "04",
+            "may": "05", "june": "06", "july": "07", "august": "08",
+            "september": "09", "october": "10", "november": "11", "december": "12",
+        }
         for entry in entries:
             if not entry:
                 continue
@@ -87,19 +97,35 @@ def _fetch_latest_stream_url(channel_url: str, channel_name: str, title_keyword:
                 m = _re.search(r'(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})', title)
                 if m:
                     video_date = f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+                else:
+                    m2 = _re.search(r'([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})', title)
+                    if m2:
+                        month = month_map.get(m2.group(1).lower())
+                        if month:
+                            video_date = f"{m2.group(3)}-{month}-{m2.group(2).zfill(2)}"
+            if expected_date and video_date != expected_date:
+                log.info("[%s] 跳過（日期不符 %s）：%s", channel_name, expected_date, title)
+                continue
             log.info("[%s] 找到最新存檔：%s（影片日期：%s）", channel_name, title, video_date or "未知")
             return f"https://www.youtube.com/watch?v={video_id}", title, video_date
         return None
 
-    result = _pick(info["entries"], title_keyword)
+    result = _pick(info["entries"], title_keyword, target_date)
 
     # 關鍵字無匹配時 fallback：取最新一支已完成的存檔
     if result is None and title_keyword:
-        log.warning("[%s] 關鍵字「%s」無匹配，改取最新一支存檔", channel_name, title_keyword)
-        result = _pick(info["entries"], "")
+        if target_date:
+            log.warning("[%s] 日期 %s 下找不到含關鍵字「%s」的影片，改以同日期最新影片回退",
+                        channel_name, target_date, title_keyword)
+        else:
+            log.warning("[%s] 關鍵字「%s」無匹配，改取最新一支存檔", channel_name, title_keyword)
+        result = _pick(info["entries"], "", target_date)
 
     if result is None:
-        log.warning("[%s] 找不到可下載的直播存檔", channel_name)
+        if target_date:
+            log.warning("[%s] 找不到 %s 的可下載直播存檔", channel_name, target_date)
+        else:
+            log.warning("[%s] 找不到可下載的直播存檔", channel_name)
 
     return result
 
@@ -157,13 +183,13 @@ def _download_audio(video_url: str, out_path: Path, channel_name: str) -> bool:
     return False
 
 
-def monitor_and_download(channel_key: str) -> dict:
+def monitor_and_download(channel_key: str, target_date: str | None = None) -> dict:
     """監控單一頻道並下載最新音檔。"""
     ch = CHANNELS[channel_key]
     out_path = AUDIO_DIR / ch["audio_filename"]
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
-    result = _fetch_latest_stream_url(ch["url"], ch["name"], ch.get("title_keyword", ""))
+    result = _fetch_latest_stream_url(ch["url"], ch["name"], ch.get("title_keyword", ""), target_date=target_date)
     if not result:
         return {"channel": channel_key, "success": False, "audio_path": None}
 
@@ -229,7 +255,10 @@ def download_specific_url(channel_key: str, video_url: str) -> dict:
     }
 
 
-def run_dual_monitor(url_overrides: dict[str, str] | None = None) -> dict[str, dict]:
+def run_dual_monitor(
+    url_overrides: dict[str, str] | None = None,
+    target_date: str | None = None,
+) -> dict[str, dict]:
     """同時監控兩個頻道（ThreadPoolExecutor）。
     url_overrides: {channel_key: video_url}，有值則下載指定 URL，否則下載最新。
     """
@@ -239,7 +268,7 @@ def run_dual_monitor(url_overrides: dict[str, str] | None = None) -> dict[str, d
             pool.submit(
                 download_specific_url if (url_overrides and key in url_overrides) else monitor_and_download,
                 key,
-                *([ url_overrides[key] ] if (url_overrides and key in url_overrides) else []),
+                *([url_overrides[key]] if (url_overrides and key in url_overrides) else [target_date]),
             ): key
             for key in CHANNELS
         }

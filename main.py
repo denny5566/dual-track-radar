@@ -37,6 +37,7 @@ from config import (
     ANALYSIS_DIR,
     AUDIO_DIR,
     BASE_DIR,
+    CARDS_DIR,
     CLAUDE_MODEL,
     EMAIL_FROM,
     EMAIL_RECIPIENTS,
@@ -57,7 +58,10 @@ log = logging.getLogger(__name__)
 
 
 # ── Step 1 ──────────────────────────────────────────────────────────────────
-def step_download(url_overrides: dict[str, str] | None = None) -> dict:
+def step_download(
+    url_overrides: dict[str, str] | None = None,
+    target_date: str | None = None,
+) -> dict:
     """
     Step 1：取得逐字稿。
 
@@ -70,12 +74,15 @@ def step_download(url_overrides: dict[str, str] | None = None) -> dict:
     import datetime
     from config import CHANNELS as _CHANNELS
 
-    log.info("=== Step 1：取得逐字稿（GA 預取 → 字幕 API → yt-dlp，url_overrides=%s）===", url_overrides)
+    log.info(
+        "=== Step 1：取得逐字稿（GA 預取 → 字幕 API → yt-dlp，url_overrides=%s, target_date=%s）===",
+        url_overrides, target_date,
+    )
 
     # ── 優先：GitHub Actions 預取逐字稿 ──────────────────────────────────────
     # GA 每天 07:00 AM 在 GitHub runner（非封鎖 IP）擷取，git commit 至 data/transcripts/
     # VM 端 docker-compose 掛載 ./data:/app/data，git pull 後容器直接可見
-    if not url_overrides:  # 指定 URL 時跳過 GA，確保取到用戶指定的影片
+    if not url_overrides and not target_date:  # 指定 URL / 日期時跳過 GA，確保取到指定資料
         ga_dir = BASE_DIR / "data" / "transcripts"
         date_file = ga_dir / "fetch_date.txt"
         today_str = datetime.date.today().isoformat()
@@ -114,7 +121,7 @@ def step_download(url_overrides: dict[str, str] | None = None) -> dict:
     # ── 字幕 API（主要方式）──────────────────────────────────────────────────
     try:
         from transcript_monitor import run_dual_transcript_monitor
-        results = run_dual_transcript_monitor(url_overrides=url_overrides)
+        results = run_dual_transcript_monitor(url_overrides=url_overrides, target_date=target_date)
         failed = [k for k, v in results.items() if not v.get("success")]
 
         if not failed:
@@ -134,7 +141,7 @@ def step_download(url_overrides: dict[str, str] | None = None) -> dict:
     # ── yt-dlp Fallback（本機執行可用；VM 上通常被封鎖）────────────────────
     try:
         from monitor import run_dual_monitor
-        audio_results = run_dual_monitor(url_overrides=url_overrides)
+        audio_results = run_dual_monitor(url_overrides=url_overrides, target_date=target_date)
         for key in failed:
             if audio_results.get(key, {}).get("success"):
                 results[key] = audio_results[key]
@@ -480,6 +487,49 @@ def step_cleanup_transcripts() -> None:
     log.info("逐字稿清理完成，共刪除 %d 個檔案", removed)
 
 
+def step_cleanup_outputs() -> None:
+    """清理 output 內的音檔、逐字稿、分析 JSON、卡片。"""
+    log.info("=== 清理 output 暫存 ===")
+    removed = 0
+    for directory in (AUDIO_DIR, TRANSCRIPT_DIR, ANALYSIS_DIR, CARDS_DIR):
+        if not directory.exists():
+            continue
+        for f in directory.glob("*"):
+            if f.is_file():
+                f.unlink()
+                log.info("已刪除：%s", f)
+                removed += 1
+    log.info("output 暫存清理完成，共刪除 %d 個檔案", removed)
+
+
+def step_cleanup_media_assets() -> None:
+    """清理影片渲染與旁白等可重建資產，不動資料庫與網站 JSON。"""
+    log.info("=== 清理影片 / 媒體暫存 ===")
+    removed = 0
+    media_patterns = {
+        BASE_DIR / "video" / "public" / "audio": ["*.mp3"],
+        BASE_DIR / "video" / "public": ["opening_bg.jpg", "insight_bg.jpg", "ending_bg.jpg", "news_*.jpg"],
+        BASE_DIR / "video" / "out": ["*"],
+        BASE_DIR / "web" / "public" / "videos": ["*"],
+    }
+    for directory, patterns in media_patterns.items():
+        if not directory.exists():
+            continue
+        for pattern in patterns:
+            for f in directory.glob(pattern):
+                if f.is_file():
+                    f.unlink()
+                    log.info("已刪除：%s", f)
+                    removed += 1
+    log.info("影片 / 媒體暫存清理完成，共刪除 %d 個檔案", removed)
+
+
+def step_cleanup_all_temp() -> None:
+    """清理所有可重建暫存，不動資料庫與網站靜態 JSON。"""
+    step_cleanup_outputs()
+    step_cleanup_media_assets()
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(description="AI 雙軌財經情報雷達管線")
@@ -499,7 +549,7 @@ def main() -> None:
     # Step 1
     video_date: str | None = args.video_date
     if not args.skip_download:
-        download_results = step_download()
+        download_results = step_download(target_date=args.video_date)
         # 從下載結果擷取影片日期（優先群益，其次游庭澔）
         for res in download_results.values():
             if res.get("video_date"):
