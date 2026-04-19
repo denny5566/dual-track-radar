@@ -5,7 +5,7 @@ import sampleData from "./data/sample.json";
 import durationsRaw from "./data/durations.json";
 
 const FPS = 30;
-const BUFFER_FRAMES = 60; // 與 RadarVideo.tsx 保持一致
+const BUFFER_FRAMES = 90; // 與 RadarVideo.tsx 保持一致（3 秒 buffer）
 
 function toFrames(seconds: number): number {
   return Math.ceil(seconds * FPS) + BUFFER_FRAMES;

@@ -1,6 +1,9 @@
 # 環境變數（含 API Key，絕對不可上傳）
 .env
 
+# YouTube cookies（含帳號 session，絕對不可上傳）
+cookies.txt
+
 # Python
 __pycache__/
 *.py[cod]

@@ -27,7 +27,8 @@ def render_edm_banner(data: dict, out_path: Path | None = None) -> Path:
     """渲染 600×300 EDM banner PNG。"""
     CARDS_DIR.mkdir(parents=True, exist_ok=True)
 
-    today = data.get("meta", {}).get("date", date.today().strftime("%Y-%m-%d"))
+    meta  = data.get("meta") or {}
+    today = meta.get("date", date.today().strftime("%Y-%m-%d"))
     if out_path is None:
         out_path = CARDS_DIR / (today.replace("-", "") + "_banner.png")
 
@@ -52,7 +53,8 @@ def render_pdf_report(data: dict, out_path: Path | None = None) -> Path:
     """渲染完整分析 PDF 報告。"""
     CARDS_DIR.mkdir(parents=True, exist_ok=True)
 
-    today = data.get("meta", {}).get("date", date.today().strftime("%Y-%m-%d"))
+    meta  = data.get("meta") or {}
+    today = meta.get("date", date.today().strftime("%Y-%m-%d"))
     if out_path is None:
         out_path = CARDS_DIR / (today.replace("-", "") + "_report.pdf")
 

@@ -56,10 +56,10 @@ log = logging.getLogger(__name__)
 
 
 # ── Step 1 ──────────────────────────────────────────────────────────────────
-def step_download() -> dict:
+def step_download(url_overrides: dict[str, str] | None = None) -> dict:
     from monitor import run_dual_monitor
-    log.info("=== Step 1：監控並下載音檔 ===")
-    results = run_dual_monitor()
+    log.info("=== Step 1：監控並下載音檔（url_overrides=%s）===", url_overrides)
+    results = run_dual_monitor(url_overrides=url_overrides)
     for key, res in results.items():
         icon = "[OK]" if res["success"] else "[FAIL]"
         log.info("%s %s: %s", icon, key, res.get("audio_path") or "無音檔")
@@ -224,17 +224,135 @@ def step_send_email(data: dict, banner_path: Path, pdf_path: Path) -> None:
     log.info("[OK] Email 已寄出至 %d 位收件人", len(recipients))
 
 
+# ── Step 5.5：影片渲染（Remotion）────────────────────────────────────────────
+def step_render_video(data: dict) -> dict[str, Path | None]:
+    """
+    呼叫 Remotion CLI 渲染影片。
+    回傳 {"horizontal": Path | None, "vertical": Path | None}
+      horizontal → 1920×1080（YouTube）
+      vertical   → 1080×1920（Instagram Reels）
+    """
+    import subprocess
+
+    log.info("=== Step 5.5：Remotion 影片渲染 ===")
+
+    # 渲染前先更新 sample.json + 旁白音檔 + 場景圖片
+    step_generate_video_assets(data)
+
+    video_dir = BASE_DIR / "video"
+    out_dir   = video_dir / "out"
+    out_dir.mkdir(exist_ok=True)
+
+    results: dict[str, Path | None] = {"horizontal": None, "vertical": None}
+
+    tasks = [
+        ("horizontal", "RadarVideoHorizontal", out_dir / "video_horizontal.mp4"),
+        ("vertical",   "RadarVideo",           out_dir / "video_vertical.mp4"),
+    ]
+
+    for key, composition, out_file in tasks:
+        log.info("[Remotion] 渲染 %s (%s)...", key, composition)
+        cmd = ["npx", "remotion", "render", composition, str(out_file)]
+        try:
+            proc = subprocess.run(
+                cmd,
+                cwd=str(video_dir),
+                capture_output=True,
+                text=True,
+                timeout=600,   # 最多等 10 分鐘
+            )
+            if proc.returncode == 0:
+                log.info("[OK] %s 影片已渲染：%s", key, out_file)
+                results[key] = out_file
+            else:
+                log.error("[FAIL] %s 渲染失敗：%s", key, proc.stderr[-500:])
+        except subprocess.TimeoutExpired:
+            log.error("[FAIL] %s 渲染逾時（10 分鐘）", key)
+        except FileNotFoundError:
+            log.error("[FAIL] 找不到 npx，請確認 Node.js 已安裝並在 PATH 中")
+            break
+
+    return results
+
+
+# ── Step 6.5：發布至 YouTube / Instagram ─────────────────────────────────────
+def step_publish_youtube(video_path: Path, data: dict) -> str | None:
+    """
+    上傳 video_path 至 YouTube，回傳 video_id。
+    """
+    from publish_video import upload_to_youtube
+
+    log.info("=== Step 6.5a：上傳影片至 YouTube ===")
+    date_str = data.get("meta", {}).get("date", "")
+    focus    = data.get("daily_focus", "")
+    title    = f"【財經雷達】{date_str} {focus}"[:100]
+    desc_lines = [
+        focus,
+        "",
+        "── 今日重點 ──",
+    ]
+    for item in data.get("top5_news", [])[:5]:
+        desc_lines.append(f"• {item.get('headline', '')}")
+    desc_lines += [
+        "",
+        "⚠️ 本影片僅供參考，非投資建議",
+        "#財經雷達 #台股 #StockRadar",
+    ]
+    description = "\n".join(desc_lines)
+
+    video_id = upload_to_youtube(video_path, title=title, description=description)
+    if video_id:
+        log.info("[OK] YouTube 影片：https://www.youtube.com/watch?v=%s", video_id)
+    return video_id
+
+
+def step_publish_instagram(video_path: Path, data: dict) -> str | None:
+    """
+    上傳 video_path 至 Instagram Reels，回傳 media_id。
+    """
+    from publish_video import upload_to_instagram
+
+    log.info("=== Step 6.5b：上傳 Reels 至 Instagram ===")
+    date_str = data.get("meta", {}).get("date", "")
+    focus    = data.get("daily_focus", "")
+    news_tags = " ".join(
+        f"#{item.get('headline', '')[:8].replace(' ', '')}"
+        for item in data.get("top5_news", [])[:3]
+        if item.get("headline")
+    )
+    caption = (
+        f"【財經雷達】{date_str}\n"
+        f"{focus}\n\n"
+        f"#財經雷達 #台股 #StockRadar #盤前分析 {news_tags}"
+    )[:2200]   # IG 說明上限 2200 字
+
+    media_id = upload_to_instagram(video_path, caption=caption)
+    if media_id:
+        log.info("[OK] Instagram Reels 發布完成：media_id=%s", media_id)
+    return media_id
+
+
 # ── Step 7 ──────────────────────────────────────────────────────────────────
-def step_cleanup(banner_path: Path | None, pdf_path: Path | None) -> None:
+def step_cleanup(
+    banner_path: Path | None,
+    pdf_path: Path | None,
+    keep_transcripts: bool = False,
+) -> None:
     """
     清理暫存檔案（PRD v2 § 4.3）：
     刪除音檔、逐字稿（原始 + 清洗後）、分析 JSON、Banner 與 PDF。
     只保留：SQLite 資料庫、靜態 JSON（data/）、執行 log。
+
+    keep_transcripts=True 時跳過 TRANSCRIPT_DIR，保留逐字稿至當天手動清除。
     """
-    log.info("=== Step 7：清理暫存檔案 ===")
+    log.info("=== Step 7：清理暫存檔案（keep_transcripts=%s）===", keep_transcripts)
     removed = 0
 
-    for directory in (AUDIO_DIR, TRANSCRIPT_DIR, ANALYSIS_DIR):
+    dirs_to_clean = [AUDIO_DIR, ANALYSIS_DIR]
+    if not keep_transcripts:
+        dirs_to_clean.append(TRANSCRIPT_DIR)
+
+    for directory in dirs_to_clean:
         for f in directory.glob("*"):
             if f.is_file():
                 f.unlink()
@@ -251,6 +369,18 @@ def step_cleanup(banner_path: Path | None, pdf_path: Path | None) -> None:
                 log.warning("檔案被佔用，跳過刪除：%s（請手動關閉後刪除）", path.name)
 
     log.info("清理完成，共刪除 %d 個檔案", removed)
+
+
+def step_cleanup_transcripts() -> None:
+    """單獨清理逐字稿目錄（當天結束後手動觸發）。"""
+    log.info("=== 清理逐字稿 ===")
+    removed = 0
+    for f in TRANSCRIPT_DIR.glob("*"):
+        if f.is_file():
+            f.unlink()
+            log.info("已刪除：%s", f.name)
+            removed += 1
+    log.info("逐字稿清理完成，共刪除 %d 個檔案", removed)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

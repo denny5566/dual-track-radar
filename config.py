@@ -82,7 +82,22 @@ FFMPEG_LOCATION = str(_FFMPEG_WINGET) if _FFMPEG_WINGET.exists() else None
 if FFMPEG_LOCATION and FFMPEG_LOCATION not in os.environ.get("PATH", ""):
     os.environ["PATH"] = FFMPEG_LOCATION + os.pathsep + os.environ.get("PATH", "")
 
+# ── YouTube 上傳（OAuth2）───────────────────────────────────────────────────
+# 首次取得 refresh_token：python publish_video.py --auth
+YOUTUBE_CLIENT_ID     = os.getenv("YOUTUBE_CLIENT_ID", "")
+YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET", "")
+YOUTUBE_REFRESH_TOKEN = os.getenv("YOUTUBE_REFRESH_TOKEN", "")
+
+# ── Instagram / Threads ──────────────────────────────────────────────────────
+IG_ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN", "")
+IG_USER_ID      = os.getenv("IG_USER_ID", "")
+# 影片對外公開 URL 基礎（供 Instagram Reels 上傳，例：http://129.150.39.175）
+IG_VIDEO_BASE_URL = os.getenv("IG_VIDEO_BASE_URL", "")
+
 # ── yt-dlp 選項 ─────────────────────────────────────────────────────────────
+# cookies.txt 路徑（從瀏覽器匯出的 Netscape 格式，解決 YouTube bot 偵測）
+YTDLP_COOKIE_FILE = os.getenv("YTDLP_COOKIE_FILE", "/app/cookies.txt")
+
 YTDLP_OPTS_AUDIO = {
     "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
     "postprocessors": [{
@@ -92,7 +107,17 @@ YTDLP_OPTS_AUDIO = {
     }],
     "postprocessor_args": {"ffmpeg": ["-y"]},   # 強制覆蓋輸出檔
     "overwrites": True,
-    "quiet": True,
-    "no_warnings": True,
+    "quiet": False,                             # 顯示 yt-dlp 錯誤訊息，方便診斷
+    "no_warnings": False,
+    "retries": 3,                               # 失敗時快速回報，不無限重試
+    "fragment_retries": 3,
+    "socket_timeout": 30,                       # socket 超時（秒）
+    # 使用 iOS / Android 客戶端繞過 YouTube bot 偵測
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["ios", "android", "web"],
+        },
+    },
+    **({"cookiefile": YTDLP_COOKIE_FILE} if YTDLP_COOKIE_FILE and __import__("os").path.exists(YTDLP_COOKIE_FILE) else {}),
     **({"ffmpeg_location": FFMPEG_LOCATION} if FFMPEG_LOCATION else {}),
 }

@@ -2,7 +2,7 @@
 # python:3.12-slim 官方映像支援 linux/arm64，可直接在 Oracle VM 上跑
 FROM python:3.12-slim
 
-# 系統依賴：ffmpeg（yt-dlp + pydub）、Chromium（Playwright）、build tools
+# 系統依賴：ffmpeg（yt-dlp + pydub）、Chromium（Playwright）、Node.js 20（Remotion 渲染）、build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
         curl \
@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         gcc \
         g++ \
         libsndfile1 \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -20,6 +22,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 安裝 Playwright Chromium（渲染 EDM Banner / PDF 用）
 RUN playwright install chromium --with-deps
+
+# 安裝 Remotion 相依套件（video/ 子目錄）
+COPY video/package*.json video/
+RUN cd video && npm install --prefer-offline
 
 # 複製專案程式碼
 COPY . .

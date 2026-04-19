@@ -144,7 +144,8 @@ async function fetchThreadsStats() {
     ? `https://graph.threads.net/v1.0/${userId}`
     : `https://graph.threads.net/v1.0/me`;
 
-  const url = `${endpoint}?fields=id,username,followers_count,threads_count&access_token=${token}`;
+  // followers_count 需要 threads_manage_insights 權限；先只抓基本欄位
+  const url = `${endpoint}?fields=id,username,threads_count&access_token=${token}`;
   const res  = await fetch(url);
   const data = await res.json();
 
@@ -153,7 +154,7 @@ async function fetchThreadsStats() {
   }
 
   return {
-    followers:  data.followers_count,
+    followers:  null,   // 需 threads_manage_insights 權限，目前不顯示
     postCount:  data.threads_count,
     username:   data.username,
   };

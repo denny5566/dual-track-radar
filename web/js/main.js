@@ -1,17 +1,17 @@
 /**
  * 財經雷達 — 首頁 (index.html)
- * 讀取 index.json，渲染文章列表。
+ * 讀取 index.json 渲染文章列表，並從 /api/market-data 載入即時市場數據。
  */
 
 // ── 日期工具 ──────────────────────────────────────────
 
 function todayTW() {
   const d = new Date();
-  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+  const days = ['日', '一', '二', '三', '四', '五', '六'];
+  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日（週${days[d.getDay()]}）`;
 }
 
 function formatDateShort(dateStr) {
-  // "2026-04-16" → "04 / 16"
   const [, m, dd] = dateStr.split('-');
   return `${m} / ${dd}`;
 }
@@ -27,7 +27,25 @@ function getMonthLabel(dateStr) {
   return `${y} 年 ${parseInt(m)} 月`;
 }
 
-// ── 取得資料 ──────────────────────────────────────────
+// ── 數字格式化 ──────────────────────────────────────────
+
+function fmtPrice(price, decimals = 2) {
+  if (price == null || isNaN(price)) return '—';
+  return price.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+// ── XSS ──────────────────────────────────────────────
+
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ── 取得文章資料 ──────────────────────────────────────────
 
 async function fetchIndex() {
   const res = await fetch('/data/index.json');
@@ -35,7 +53,7 @@ async function fetchIndex() {
   return res.json();
 }
 
-// ── 渲染 ─────────────────────────────────────────────
+// ── 渲染文章列表 ─────────────────────────────────────────
 
 function renderList(articles) {
   const root = document.getElementById('article-list');
@@ -44,7 +62,6 @@ function renderList(articles) {
     return;
   }
 
-  // 依月份分組
   const groups = new Map();
   articles.forEach(a => {
     const key = getMonthLabel(a.date);
@@ -59,9 +76,9 @@ function renderList(articles) {
       html += `<div class="month-label">${esc(monthLabel)}</div>`;
     }
     items.forEach(a => {
-      const dateShort   = formatDateShort(a.date);
-      const weekday     = getWeekdayTW(a.date);
-      const tagsHtml    = (a.tags || []).slice(0, 4)
+      const dateShort = formatDateShort(a.date);
+      const weekday   = getWeekdayTW(a.date);
+      const tagsHtml  = (a.tags || []).slice(0, 4)
         .map(t => `<span class="item-tag">${esc(t)}</span>`).join('');
 
       html += `
@@ -83,68 +100,201 @@ function renderList(articles) {
   root.innerHTML = html;
 }
 
-// ── XSS ──────────────────────────────────────────────
-
-function esc(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-// ── Tab Switching Logic ─────────────────────────────────
+// ── Tab Switching ─────────────────────────────────────
 
 function initTabs() {
-  const btns = document.querySelectorAll('.tab-btn');
+  const btns  = document.querySelectorAll('.tab-btn');
   const panes = document.querySelectorAll('.tab-pane');
 
   btns.forEach(btn => {
     btn.addEventListener('click', () => {
-      // Remove active from all
       btns.forEach(b => b.classList.remove('active'));
       panes.forEach(p => p.classList.remove('active'));
 
-      // Add active to clicked
       btn.classList.add('active');
-      const targetId = btn.getAttribute('data-target');
-      const targetPane = document.getElementById(targetId);
-      if (targetPane) {
-        targetPane.classList.add('active');
-      }
+      const targetPane = document.getElementById(btn.getAttribute('data-target'));
+      if (targetPane) targetPane.classList.add('active');
+
+      const resetScroll = () => {
+        window.scrollTo(0, 0);
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+      };
+      resetScroll();
+      requestAnimationFrame(() => {
+        resetScroll();
+        requestAnimationFrame(resetScroll);
+      });
     });
   });
 }
 
-// ── Video Hub Logic ──────────────────────────────────────
+// ── Market Data ───────────────────────────────────────
+
+/**
+ * 繪製 sparkline SVG。
+ * @param {SVGElement} svg
+ * @param {number[]} values  最近 N 個收盤價
+ * @param {string}   color   線條顏色
+ */
+function drawSparkline(svg, values, color) {
+  if (!values || values.length < 2) return;
+
+  const W = 200, H = 46, pad = 3;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (W - pad * 2);
+    const y = H - pad - ((v - min) / range) * (H - pad * 2);
+    return [x, y];
+  });
+
+  const polyPts = pts.map(p => p.join(',')).join(' ');
+  // Area polygon: close path along bottom
+  const areaPts = [
+    ...pts,
+    [pts[pts.length - 1][0], H - pad],
+    [pts[0][0], H - pad],
+  ].map(p => p.join(',')).join(' ');
+
+  const gradId = 'spk' + Math.random().toString(36).slice(2, 7);
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%"   stop-color="${color}" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <polygon
+      points="${areaPts}"
+      fill="url(#${gradId})"
+    />
+    <polyline
+      points="${polyPts}"
+      fill="none"
+      stroke="${color}"
+      stroke-width="1.6"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  `;
+}
+
+/**
+ * 渲染 ticker 橫幅（CSS marquee）。
+ */
+function renderTicker(items) {
+  const track = document.getElementById('ticker-track');
+  if (!track || !items?.length) return;
+
+  const html = items.map(item => {
+    const up   = item.change >= 0;
+    const sign = up ? '+' : '';
+    const cls  = up ? 'up' : 'down';
+    return `
+      <div class="ticker-item">
+        <span class="ti-name">${esc(item.name)}</span>
+        <span class="ti-price">${fmtPrice(item.price)}</span>
+        <span class="ti-change ${cls}">${sign}${item.change.toFixed(2)}</span>
+        <span class="ti-sep">·</span>
+        <span class="ti-pct ${cls}">${sign}${item.changePct.toFixed(2)}%</span>
+      </div>
+    `;
+  }).join('');
+
+  // Duplicate for seamless loop
+  track.innerHTML = html + html;
+}
+
+/**
+ * 渲染總經指標卡片。
+ */
+function renderMacro(macro) {
+  const COLORS = {
+    vix:   '#ef4444',
+    us10y: '#eab308',
+    dxy:   '#2962ff',
+    gold:  '#f59e0b',
+    wti:   '#f97316',
+  };
+
+  document.querySelectorAll('.macro-data[data-key]').forEach(el => {
+    const key  = el.dataset.key;
+    const item = macro[key];
+    if (!item) return;
+
+    const up  = item.change >= 0;
+    const sign = up ? '+' : '';
+    const d   = item.decimals ?? 2;
+    const color = el.dataset.color || COLORS[key] || '#888';
+
+    el.querySelector('.macro-price-num').textContent = fmtPrice(item.price, d);
+
+    const chgEl = el.querySelector('.macro-price-chg');
+    const chgStr = `${sign}${item.change.toFixed(d)}   ${sign}${item.changePct.toFixed(2)}%`;
+    chgEl.textContent = chgStr;
+    chgEl.className = `macro-price-chg ${up ? 'market-up' : 'market-down'}`;
+
+    const sparkEl = el.querySelector('.macro-spark');
+    if (sparkEl && item.closes?.length >= 2) {
+      drawSparkline(sparkEl, item.closes, color);
+    }
+  });
+}
+
+/**
+ * 載入市場數據，渲染 ticker 和 macro 卡片。
+ * 每 5 分鐘自動刷新。
+ */
+async function loadMarketData() {
+  try {
+    const res = await fetch('/api/market-data');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (data.ticker?.length) renderTicker(data.ticker);
+    if (data.macro)          renderMacro(data.macro);
+
+    // 更新時間標籤
+    const noteEl = document.getElementById('macro-update-time');
+    if (noteEl && data.ts) {
+      const t = new Date(data.ts);
+      const hh = String(t.getHours()).padStart(2, '0');
+      const mm = String(t.getMinutes()).padStart(2, '0');
+      noteEl.textContent = `資料來源：Yahoo Finance · 更新 ${hh}:${mm}`;
+    }
+  } catch (err) {
+    console.warn('[market-data]', err.message);
+  }
+}
+
+// ── Video Hub（legacy stub）─────────────────────────────
 
 async function initVideos() {
   const container = document.getElementById('video-accordion');
   if (!container) return;
 
-  // Simulate fetching video data
   const mockVideos = [
-    { title: "2026-04-16 AI 雙軌財經解析短影音", date: "2026-04-16", url: "#" },
-    { title: "2026-04-15 台積電法說會前瞻短評", date: "2026-04-15", url: "#" }
+    { title: "AI 雙軌財經解析短影音", date: "2026-04-18", url: "#" },
   ];
 
-  let html = '';
-  mockVideos.forEach((v, i) => {
-    html += `
-      <div class="accordion-item">
-        <div class="accordion-header" onclick="this.parentElement.classList.toggle('active')">
-          <span>${esc(v.date)} - ${esc(v.title)}</span>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
-        </div>
-        <div class="accordion-content">
-          <div style="background:#111; padding:2rem; text-align:center; border-radius:6px; margin-top:1rem; border:1px solid rgba(255,255,255,0.1)">
-             <p style="color:var(--text-2); margin-bottom:1rem;">🎥 此區域將置入生成的短影音播放器</p>
-             <button class="tab-btn" style="display:inline-block">▶ 播放影片</button>
-          </div>
+  container.innerHTML = mockVideos.map(v => `
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="this.parentElement.classList.toggle('active')">
+        <span>${esc(v.date)} — ${esc(v.title)}</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="accordion-content">
+        <div style="background:#111;padding:2rem;text-align:center;border-radius:6px;margin-top:1rem;border:1px solid rgba(255,255,255,0.1)">
+           <p style="color:var(--text-2);margin-bottom:1rem">🎥 此區域將置入生成的短影音播放器</p>
+           <button class="tab-btn">▶ 播放影片</button>
         </div>
       </div>
-    `;
-  });
-
-  container.innerHTML = html;
+    </div>
+  `).join('');
 }
 
 // ── Init ─────────────────────────────────────────────
@@ -154,6 +304,7 @@ async function init() {
   initTabs();
   initVideos();
 
+  // 載入文章列表
   try {
     const { articles } = await fetchIndex();
     renderList(articles || []);
@@ -162,6 +313,12 @@ async function init() {
     document.getElementById('article-list').innerHTML =
       `<p style="color:var(--text-2);font-size:.88rem;padding:1rem 0">資料載入失敗，請稍後再試。</p>`;
   }
+
+  // 載入市場數據（不阻塞）
+  loadMarketData();
+
+  // 每 5 分鐘自動刷新
+  setInterval(loadMarketData, 5 * 60 * 1000);
 }
 
 document.addEventListener('DOMContentLoaded', init);

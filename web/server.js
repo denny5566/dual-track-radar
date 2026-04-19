@@ -19,6 +19,7 @@ import { dirname, join } from 'path';
 import chatHandler          from './api/chat.js';
 import dashboardChatHandler from './api/dashboard-chat.js';
 import socialStatsHandler   from './api/social-stats.js';
+import marketDataHandler    from './api/market-data.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app  = express();
@@ -30,6 +31,7 @@ app.use(express.json());
 app.post('/api/chat',           chatHandler);
 app.post('/api/dashboard-chat', dashboardChatHandler);
 app.get ('/api/social-stats',   socialStatsHandler);
+app.get ('/api/market-data',    marketDataHandler);
 
 // ── /d route（等同 vercel.json rewrites）──────────────────────────────────────
 app.get('/d', (_req, res) => res.sendFile(join(__dirname, 'dist', 'd.html')));

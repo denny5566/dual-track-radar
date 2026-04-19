@@ -35,14 +35,8 @@ function devApiPlugin() {
               return;
             }
 
-            // Dynamically retrieve RAG context using Python
-            let ragContext = '';
-            try {
-              const { execSync } = await import('child_process');
-              ragContext = execSync(`python -c "import sys; sys.path.append('modules'); from rag_indexer import retrieve_context; print(retrieve_context('${question.replace(/'/g, "\\'")}', 3))"`).toString();
-            } catch (execErr) {
-              console.error('RAG Python error:', execErr);
-            }
+            // RAG context（模組已移除，保留空字串供後續擴充）
+            const ragContext = '';
 
             // 直接呼叫 Anthropic REST API（不依賴 SDK，免安裝額外套件）
             const { default: https } = await import('https');
@@ -75,23 +69,9 @@ function devApiPlugin() {
                 try {
                   const parsed = JSON.parse(data);
                   let rawAnswer = parsed.content?.find(b => b.type === 'text')?.text || '無法取得回覆';
-                  
-                  let category = '未分類';
-                  const catMatch = rawAnswer.match(/\[分類:\s*(.+?)\]/);
-                  if (catMatch) {
-                    category = catMatch[1];
-                    // Remove the formatting from the final answer sent back to user
-                    rawAnswer = rawAnswer.replace(/\n*\[分類:\s*.+?\]\n*/g, '').trim();
-                  }
 
-                  // Non-blocking log to SQLite
-                  try {
-                    const { exec } = require('child_process');
-                    const safePayload = JSON.stringify({question, answer: rawAnswer, category}).replace(/'/g, "\\'");
-                    exec(`python ../modules/log_chat.py '${safePayload}'`);
-                  } catch (e) {
-                     console.error("Log error: ", e);
-                  }
+                  // 移除 [分類: ...] 標籤，不回傳給使用者
+                  rawAnswer = rawAnswer.replace(/\n*\[分類:\s*.+?\]\n*/g, '').trim();
 
                   res.statusCode = 200;
                   res.setHeader('Content-Type', 'application/json');

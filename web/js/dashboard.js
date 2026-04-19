@@ -7,7 +7,7 @@
 // 密碼存在 localStorage，可在 .env 中設定 DASHBOARD_PASS 對應值
 // 預設密碼：radar2026（上線後請修改）
 const DASH_PASS_KEY = 'radar_dash_auth';
-const CORRECT_PASS = '1234'; // ← 請修改為您自己的密碼
+const CORRECT_PASS = 'radar2026'; // ← 請修改為您自己的密碼
 
 function checkAuth() {
   if (localStorage.getItem(DASH_PASS_KEY) === CORRECT_PASS) {

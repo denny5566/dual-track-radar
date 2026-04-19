@@ -56,6 +56,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # 暫存最近一次分析結果，供 /publish 使用
 _pending_data: dict | None = None
+# 暫存已渲染的 PDF / Banner 路徑（避免發布時重複渲染）
+_pending_cards: tuple | None = None   # (banner_path, pdf_path)
 
 
 # ── 工具函式 ──────────────────────────────────────────────────────────────────
@@ -101,6 +103,16 @@ def _build_report_embed(data: dict) -> discord.Embed:
     if insight:
         embed.add_field(name="💡 綜合洞察", value=insight[:300], inline=False)
 
+    source_videos = data.get("_source_videos", {})
+    if source_videos:
+        links = []
+        for res in source_videos.values():
+            if res.get("success") and res.get("video_url"):
+                title = res.get("title", res.get("channel", ""))
+                links.append(f"[{title[:45]}]({res['video_url']})")
+        if links:
+            embed.add_field(name="📎 來源影片", value="\n".join(links), inline=False)
+
     embed.set_footer(text="⚠️ 僅供參考，非投資建議 | #雙軌財經雷達 #台股")
     return embed
 
@@ -120,6 +132,7 @@ async def _run_pipeline_with_progress(
     interaction: discord.Interaction,
     skip_download: bool = False,
     revise_hint: str = "",
+    url_overrides: dict[str, str] | None = None,
 ) -> dict | None:
     """
     逐步執行管線，並在同一條 Embed 訊息中即時更新進度。
@@ -145,6 +158,7 @@ async def _run_pipeline_with_progress(
     progress_msg = await interaction.followup.send(
         embed=_build_progress_embed(steps)
     )
+    _channel = interaction.channel  # 15 分鐘後 token 過期時的備用頻道
 
     async def set_step(idx: int, icon: str) -> None:
         """就地替換步驟圖示並編輯訊息。"""
@@ -157,16 +171,43 @@ async def _run_pipeline_with_progress(
         except Exception:
             pass
 
+    async def safe_final_edit(embed: discord.Embed) -> None:
+        """嘗試編輯進度訊息；若 interaction token 已過期則在頻道發新訊息。"""
+        try:
+            await progress_msg.edit(embed=embed)
+        except Exception:
+            if _channel:
+                await _channel.send(embed=embed)
+
+    download_results: dict = {}
+
     try:
         # Step 0: Download
         if not skip_download:
             await set_step(0, "🔄")
-            await loop.run_in_executor(None, m.step_download)
+            download_results = await loop.run_in_executor(
+                None, lambda: m.step_download(url_overrides=url_overrides)
+            )
+            failed_chs = [k for k, v in download_results.items() if not v.get("success")]
+            if failed_chs:
+                await set_step(0, "❌")
+                raise RuntimeError(
+                    f"音檔下載失敗：{', '.join(failed_chs)}\n"
+                    "可能原因：YouTube bot 偵測、網路逾時、URL 無效或 cookies 過期。\n"
+                    "請確認 cookies.txt 含有效登入 token，或稍後重試。"
+                )
             await set_step(0, "✅")
 
         # Step 1: Transcribe
         await set_step(1, "🔄")
         transcripts = await loop.run_in_executor(None, m.step_transcribe)
+        empty_chs = [k for k, v in transcripts.items() if not v]
+        if empty_chs:
+            await set_step(1, "❌")
+            raise RuntimeError(
+                f"語音辨識失敗：{', '.join(empty_chs)} 的逐字稿為空\n"
+                "可能原因：音檔損壞、音訊過短或全為靜音。"
+            )
         await set_step(1, "✅")
 
         # Step 2: Preprocess
@@ -182,17 +223,38 @@ async def _run_pipeline_with_progress(
         # Step 3: Analyze
         await set_step(3, "🔄")
         data = await loop.run_in_executor(None, lambda: m.step_analyze(cleaned or transcripts))
+        if data is None:
+            raise RuntimeError("Claude 分析失敗：逐字稿缺失或 API 回傳空結果，請確認音訊已下載")
+        if download_results:
+            data["_source_videos"] = download_results
         await set_step(3, "✅")
 
         # Step 4: Render report cards
         await set_step(4, "🔄")
-        await loop.run_in_executor(None, lambda: m.step_render_cards(data))
+        banner_path, pdf_path = await loop.run_in_executor(None, lambda: m.step_render_cards(data))
         await set_step(4, "✅")
 
+        # 儲存路徑供發布時使用（避免重複渲染）
+        global _pending_cards
+        _pending_cards = (banner_path, pdf_path)
+
         # 最終狀態
-        await progress_msg.edit(
-            embed=_build_progress_embed(steps, title="✅ 管線執行完成", color=0x22c55e)
+        await safe_final_edit(
+            _build_progress_embed(steps, title="✅ 管線執行完成", color=0x22c55e)
         )
+
+        # DM 傳送 PDF 預覽給擁有者
+        if OWNER_ID and pdf_path:
+            try:
+                from pathlib import Path as _Path
+                owner = await bot.fetch_user(OWNER_ID)
+                await owner.send(
+                    content=f"📄 **{data.get('meta', {}).get('date', '今日')} 日報已生成**\n請審核後在頻道點擊按鈕發布。",
+                    file=discord.File(str(pdf_path), filename=_Path(pdf_path).name),
+                )
+            except Exception as e:
+                log.warning("PDF DM 傳送失敗：%s", e)
+
         return data
 
     except Exception as e:
@@ -201,8 +263,8 @@ async def _run_pipeline_with_progress(
         for i, s in enumerate(steps):
             if "🔄" in s:
                 await set_step(i, "❌")
-        await progress_msg.edit(
-            embed=_build_progress_embed(
+        await safe_final_edit(
+            _build_progress_embed(
                 steps + [f"\n**錯誤：** {str(e)[:300]}"],
                 title="❌ 管線執行失敗",
                 color=0xef4444,
@@ -215,15 +277,26 @@ async def _run_pipeline_with_progress(
 # ── 發布邏輯（共用）──────────────────────────────────────────────────────────
 async def _do_publish_daily(interaction: discord.Interaction, data: dict) -> None:
     """寄 Email、在 Discord 頻道貼文、存檔、清理暫存。"""
+    global _pending_cards
     await interaction.followup.send("📤 發布日報中...")
+
+    loop = asyncio.get_event_loop()
+
+    # 優先使用管線已渲染的路徑，避免重複渲染
+    cards = _pending_cards
+    _pending_cards = None
 
     def _sync():
         import main as m
-        banner_path, pdf_path = m.step_render_cards(data)
+        from pathlib import Path as _Path
+        nonlocal cards
+        if cards and cards[0] and _Path(str(cards[0])).exists():
+            banner_path, pdf_path = cards
+        else:
+            banner_path, pdf_path = m.step_render_cards(data)
         m.step_send_email(data, banner_path, pdf_path)
-        m.step_cleanup(banner_path, pdf_path)
+        m.step_cleanup(banner_path, pdf_path, keep_transcripts=True)
 
-    loop = asyncio.get_event_loop()
     try:
         await loop.run_in_executor(None, _sync)
     except Exception as e:
@@ -245,29 +318,157 @@ async def _do_publish_daily(interaction: discord.Interaction, data: dict) -> Non
 
 
 async def _do_publish_video(interaction: discord.Interaction, data: dict) -> None:
-    """執行影片渲染流程（Remotion），完成後通知。"""
-    await interaction.followup.send("🎬 影片渲染中，這可能需要幾分鐘...")
-
-    def _sync():
-        import main as m
-        # step_render_video 負責 Edge TTS + Remotion 渲染
-        video_path = m.step_render_video(data)
-        return video_path
-
+    """
+    執行完整影片流程：渲染（Remotion）→ 上傳 YouTube → 上傳 Instagram Reels。
+    各步驟獨立報告，單一失敗不中斷後續步驟。
+    """
     loop = asyncio.get_event_loop()
+    date_str = data.get("meta", {}).get("date", "")
+
+    # ── Step 1：渲染（~5~10 分鐘）────────────────────────────────────────────
+    steps = [
+        "⬜ 更新影片資料 + 渲染（約 5–10 分鐘）",
+        "⬜ 上傳至 YouTube",
+        "⬜ 上傳至 Instagram Reels",
+    ]
+    progress_msg = await interaction.followup.send(
+        embed=_build_progress_embed(steps, title="🎬 影片發布流程")
+    )
+
+    async def set_step(idx: int, icon: str) -> None:
+        line = steps[idx]
+        for old in ("⬜", "🔄", "✅", "❌", "⏭️"):
+            line = line.replace(old, icon, 1)
+        steps[idx] = line
+        try:
+            await progress_msg.edit(embed=_build_progress_embed(steps, title="🎬 影片發布流程"))
+        except Exception:
+            pass
+
+    # 渲染
+    await set_step(0, "🔄")
     try:
-        video_path = await loop.run_in_executor(None, _sync)
+        import main as m
+        video_paths: dict = await loop.run_in_executor(None, lambda: m.step_render_video(data))
+        await set_step(0, "✅")
+
+        # DM Banner 預覽（影片檔案太大，以 Banner 圖代替）
+        if OWNER_ID and _pending_cards and _pending_cards[0]:
+            try:
+                from pathlib import Path as _Path
+                banner_p = _Path(str(_pending_cards[0]))
+                if banner_p.exists():
+                    owner = await bot.fetch_user(OWNER_ID)
+                    await owner.send(
+                        content=f"🎬 **{date_str} 影片已渲染完成**\n請確認 Banner 預覽，回頻道按「▶️ YouTube」或「📸 Instagram」上傳。",
+                        file=discord.File(str(banner_p), filename=banner_p.name),
+                    )
+            except Exception as _e:
+                log.warning("Banner DM 傳送失敗：%s", _e)
     except Exception as e:
         log.error("影片渲染失敗：%s", e, exc_info=True)
-        await interaction.followup.send(f"❌ 影片渲染失敗：{e}")
+        await set_step(0, "❌")
+        for i in [1, 2]:
+            await set_step(i, "⏭️")
+        await progress_msg.edit(
+            embed=_build_progress_embed(
+                steps + [f"\n**錯誤：** {str(e)[:300]}"],
+                title="❌ 影片渲染失敗", color=0xef4444,
+            )
+        )
         await _dm_owner(f"⚠️ 影片渲染失敗\n錯誤：{e}")
         return
 
-    msg = "✅ 影片渲染完成！"
-    if video_path:
-        msg += f"\n📁 `{video_path}`"
-    await interaction.followup.send(msg)
-    await _dm_owner(f"✅ {data.get('meta', {}).get('date', '')} 影片渲染完成")
+    h_path = video_paths.get("horizontal")
+    v_path = video_paths.get("vertical")
+    result_lines: list[str] = []
+
+    # ── Step 2：YouTube（橫式）───────────────────────────────────────────────
+    if h_path:
+        await set_step(1, "🔄")
+        try:
+            yt_id = await loop.run_in_executor(None, lambda: m.step_publish_youtube(h_path, data))
+            if yt_id:
+                await set_step(1, "✅")
+                result_lines.append(f"▶️ YouTube：https://www.youtube.com/watch?v={yt_id}")
+            else:
+                await set_step(1, "❌")
+                result_lines.append("▶️ YouTube：上傳失敗（請檢查 OAuth2 憑證）")
+        except Exception as e:
+            log.error("YouTube 上傳失敗：%s", e)
+            await set_step(1, "❌")
+            result_lines.append(f"▶️ YouTube：❌ {str(e)[:100]}")
+    else:
+        await set_step(1, "⏭️")
+        result_lines.append("▶️ YouTube：渲染失敗，略過")
+
+    # ── Step 3：Instagram Reels（直式）──────────────────────────────────────
+    if v_path:
+        await set_step(2, "🔄")
+        try:
+            ig_id = await loop.run_in_executor(None, lambda: m.step_publish_instagram(v_path, data))
+            if ig_id:
+                await set_step(2, "✅")
+                result_lines.append(f"📸 Instagram：發布成功（media_id={ig_id}）")
+            else:
+                await set_step(2, "❌")
+                result_lines.append("📸 Instagram：上傳失敗（請檢查 IG_ACCESS_TOKEN / IG_VIDEO_BASE_URL）")
+        except Exception as e:
+            log.error("Instagram 上傳失敗：%s", e)
+            await set_step(2, "❌")
+            result_lines.append(f"📸 Instagram：❌ {str(e)[:100]}")
+    else:
+        await set_step(2, "⏭️")
+        result_lines.append("📸 Instagram：渲染失敗，略過")
+
+    # 最終摘要
+    any_success = "✅" in steps[1] or "✅" in steps[2]
+    title  = "✅ 影片發布完成" if any_success else "⚠️ 影片發布（部分失敗）"
+    color  = 0x22c55e if any_success else 0xf59e0b
+    await progress_msg.edit(
+        embed=_build_progress_embed(steps + [""] + result_lines, title=title, color=color)
+    )
+    await _dm_owner(f"🎬 {date_str} 影片發布完成\n" + "\n".join(result_lines))
+
+
+# ── 指定 URL 下載 Modal ───────────────────────────────────────────────────────
+class _CustomUrlModal(discord.ui.Modal, title="📥 指定影片 URL"):
+    cap_url = discord.ui.TextInput(
+        label="群益期貨 YouTube URL（留空則下載最新）",
+        style=discord.TextStyle.short,
+        required=False,
+        placeholder="https://www.youtube.com/watch?v=...",
+        max_length=200,
+    )
+    yu_url = discord.ui.TextInput(
+        label="游庭澔 YouTube URL（留空則下載最新）",
+        style=discord.TextStyle.short,
+        required=False,
+        placeholder="https://www.youtube.com/watch?v=...",
+        max_length=200,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        global _pending_data
+        await interaction.response.defer(thinking=True)
+
+        url_overrides: dict[str, str] = {}
+        if self.cap_url.value.strip():
+            url_overrides["capital_futures"] = self.cap_url.value.strip()
+        if self.yu_url.value.strip():
+            url_overrides["yu_ting_hao"] = self.yu_url.value.strip()
+
+        data = await _run_pipeline_with_progress(interaction, url_overrides=url_overrides or None)
+        if data is None:
+            return
+
+        _pending_data = data
+        embed = _build_report_embed(data)
+        view = _ReviewView()
+        hint = "、".join(
+            f"{k}={v[32:43]}..." for k, v in url_overrides.items()
+        ) if url_overrides else "（全部下載最新）"
+        await interaction.followup.send(f"✅ 指定 URL 執行完成（{hint}）：", embed=embed, view=view)
 
 
 # ── 修改建議 Modal ────────────────────────────────────────────────────────────
@@ -302,43 +503,68 @@ class _ReviseModal(discord.ui.Modal, title="✏️ 修改建議"):
 
 # ── 審核按鈕 View（分析完成後顯示）──────────────────────────────────────────
 class _ReviewView(discord.ui.View):
-    """4 個審核按鈕：發布日報 / 發布影片 / 修改建議 / 取消"""
+    """
+    5 個審核按鈕：發布日報 / 發布至網站 / 發布影片 / 修改建議 / 取消
+    使用 custom_id 設為持久化 View（bot 重啟後按鈕仍可使用）。
+    _pending_data 過期時統一回覆「請重新執行」。
+    """
 
     def __init__(self):
-        super().__init__(timeout=3600)  # 1 小時內有效
+        super().__init__(timeout=None)  # persistent — 不超時
 
-    @discord.ui.button(label="✅ 發布日報", style=discord.ButtonStyle.success, row=0)
+    @discord.ui.button(label="✅ 發布日報", style=discord.ButtonStyle.success,
+                       custom_id="review_publish_daily", row=0)
     async def publish_daily_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
         global _pending_data
         if _pending_data is None:
-            await interaction.response.send_message("⚠️ 報告已過期，請重新 /analyze", ephemeral=True)
+            await interaction.response.send_message("⚠️ 報告已過期或 Bot 已重啟，請重新執行管線。", ephemeral=True)
             return
         await interaction.response.defer(thinking=True)
         data = _pending_data
         _pending_data = None
-        self.stop()
         await _do_publish_daily(interaction, data)
 
-    @discord.ui.button(label="🎬 發布影片", style=discord.ButtonStyle.primary, row=0)
+    @discord.ui.button(label="🗄️ 發布至網站", style=discord.ButtonStyle.primary,
+                       custom_id="review_publish_web", row=0)
+    async def publish_db_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        global _pending_data
+        if _pending_data is None:
+            await interaction.response.send_message("⚠️ 報告已過期或 Bot 已重啟，請重新執行管線。", ephemeral=True)
+            return
+        await interaction.response.defer(thinking=True)
+        data = _pending_data
+        try:
+            import main as m
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, lambda: m.step_save_db(data))
+            await interaction.followup.send("✅ 已寫入資料庫並更新網站（`web/public/data/`）。")
+            await _dm_owner(f"🗄️ {data.get('meta', {}).get('date', '')} 報告已發布至網站")
+        except Exception as e:
+            log.error("發布至資料庫失敗：%s", e, exc_info=True)
+            await interaction.followup.send(f"❌ 發布失敗：{e}")
+
+    @discord.ui.button(label="🎬 發布影片", style=discord.ButtonStyle.secondary,
+                       custom_id="review_publish_video", row=0)
     async def publish_video_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
         global _pending_data
         if _pending_data is None:
-            await interaction.response.send_message("⚠️ 報告已過期，請重新 /analyze", ephemeral=True)
+            await interaction.response.send_message("⚠️ 報告已過期或 Bot 已重啟，請重新執行管線。", ephemeral=True)
             return
         await interaction.response.defer(thinking=True)
         data = _pending_data
         await _do_publish_video(interaction, data)
 
-    @discord.ui.button(label="✏️ 修改建議", style=discord.ButtonStyle.secondary, row=1)
+    @discord.ui.button(label="✏️ 修改建議", style=discord.ButtonStyle.secondary,
+                       custom_id="review_revise", row=1)
     async def revise_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
         await interaction.response.send_modal(_ReviseModal())
 
-    @discord.ui.button(label="❌ 取消", style=discord.ButtonStyle.danger, row=1)
+    @discord.ui.button(label="❌ 取消", style=discord.ButtonStyle.danger,
+                       custom_id="review_cancel", row=1)
     async def cancel_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
         global _pending_data
         _pending_data = None
         await interaction.response.send_message("已取消，報告未發布。", ephemeral=True)
-        self.stop()
 
 
 # ── 控制面板 View（持久化，排程外強制執行）────────────────────────────────────
@@ -424,6 +650,31 @@ class _ControlPanelView(discord.ui.View):
         view = _ReviewView()
         await interaction.followup.send("✅ 重新分析完成：", embed=embed, view=view)
 
+    @discord.ui.button(
+        label="📥 指定 URL 下載",
+        style=discord.ButtonStyle.secondary,
+        custom_id="ctrl_custom_url",
+        row=2,
+    )
+    async def custom_url_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await interaction.response.send_modal(_CustomUrlModal())
+
+    @discord.ui.button(
+        label="🗑️ 清理逐字稿",
+        style=discord.ButtonStyle.danger,
+        custom_id="ctrl_cleanup_transcripts",
+        row=2,
+    )
+    async def cleanup_transcripts_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        try:
+            import main as m
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, m.step_cleanup_transcripts)
+            await interaction.followup.send("✅ 逐字稿已清理完畢。", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ 清理失敗：{e}", ephemeral=True)
+
 
 def _build_control_panel_embed() -> discord.Embed:
     embed = discord.Embed(
@@ -432,7 +683,9 @@ def _build_control_panel_embed() -> discord.Embed:
             "使用下方按鈕手動觸發管線，無需等待排程。\n\n"
             "**🚀 立即執行完整流程** — 下載 → 辨識 → 前處理 → 分析 → 產出\n"
             "**📋 查看系統狀態** — 顯示最近 5 筆執行記錄\n"
-            "**⚙️ 僅重新分析** — 略過下載，直接對現有音訊重新分析\n\n"
+            "**⚙️ 僅重新分析** — 略過下載，直接對現有音訊重新分析\n"
+            "**📥 指定 URL 下載** — 填入 YouTube 網址下載特定影片（留空仍用最新）\n"
+            "**🗑️ 清理逐字稿** — 當天結束後手動清除逐字稿暫存\n\n"
             f"Bot 上線時間：{datetime.now().strftime('%Y-%m-%d %H:%M')}"
         ),
         color=0x4f46e5,
@@ -444,8 +697,9 @@ def _build_control_panel_embed() -> discord.Embed:
 # ── 斜線指令 ──────────────────────────────────────────────────────────────────
 @bot.tree.command(name="analyze", description="手動觸發分析（可指定頻道）")
 @app_commands.describe(channel="capital_futures / yu_ting_hao / all（預設 all）")
-async def cmd_analyze(interaction: discord.Interaction, channel: str = "all"):  # noqa: ARG001
+async def cmd_analyze(interaction: discord.Interaction, channel: str = "all"):
     await interaction.response.defer(thinking=True)
+    log.info("/analyze 觸發（channel=%s）", channel)
     global _pending_data
 
     data = await _run_pipeline_with_progress(interaction)
@@ -547,6 +801,7 @@ async def cmd_panel(interaction: discord.Interaction):
 async def on_ready():
     # 重新註冊持久化 View（Bot 重啟後按鈕仍可用）
     bot.add_view(_ControlPanelView())
+    bot.add_view(_ReviewView())
 
     await bot.tree.sync()
     log.info("Bot 已上線：%s（ID: %s）", bot.user, bot.user.id)

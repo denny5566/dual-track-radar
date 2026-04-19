@@ -1,5 +1,5 @@
 # 核心抓取與音訊
-yt-dlp>=2024.1.0
+yt-dlp[default]>=2026.1.0
 pydub>=0.25.1
 
 # 語音轉文字（faster-whisper 含 Silero VAD 支援）
@@ -19,6 +19,11 @@ playwright>=1.40.0
 
 # Discord Bot
 discord.py>=2.3.0
+
+# 影片發布（YouTube Data API v3）
+google-api-python-client>=2.100.0
+google-auth-oauthlib>=1.1.0
+google-auth>=2.23.0
 
 # 工具
 python-dotenv>=1.0.0

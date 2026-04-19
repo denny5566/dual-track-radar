@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>財經雷達 | 智能三軌平台</title>
+  <title>財經雷達</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
   <meta name="description" content="AI 驅動的每日財經情報速報，整合台股、美股重點觀察。">
   <link rel="stylesheet" href="./css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,29 +13,13 @@
 </head>
 <body>
 
-  <!-- Live Ticker (Global) -->
+  <!-- Live Market Ticker -->
   <div class="ticker-wrap">
-    <div class="tradingview-widget-container">
-      <div class="tradingview-widget-container__widget"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
-      {
-        "symbols": [
-          {"description":"台股加權","proName":"TWSE:TAIEX"},
-          {"description":"S&P 500","proName":"OANDA:SPX500USD"},
-          {"description":"Nasdaq","proName":"NASDAQ:NDX"},
-          {"description":"道瓊","proName":"TVC:DJI"},
-          {"description":"費半","proName":"NASDAQ:SOX"},
-          {"description":"台積電 ADR","proName":"NYSE:TSM"},
-          {"description":"黃金","proName":"COMEX:GC1!"},
-          {"description":"WTI 原油","proName":"NYMEX:CL1!"}
-        ],
-        "showSymbolLogo":true,
-        "isTransparent":true,
-        "displayMode":"adaptive",
-        "colorTheme":"dark",
-        "locale":"zh_TW"
-      }
-      </script>
+    <div class="ticker-badge">LIVE</div>
+    <div class="ticker-scroll-area">
+      <div class="ticker-track" id="ticker-track">
+        <div class="ticker-placeholder">市場數據載入中…</div>
+      </div>
     </div>
   </div>
 
@@ -42,13 +27,7 @@
   <header class="site-header">
     <div class="container header-row">
       <a href="/" class="logo" aria-label="財經雷達首頁">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#g1)" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <defs>
-            <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#4F46E5" />
-              <stop offset="100%" stop-color="#ec4899" />
-            </linearGradient>
-          </defs>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="9"/>
           <circle cx="12" cy="12" r="5"/>
           <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
@@ -67,15 +46,15 @@
   <nav class="tab-nav">
     <div class="container tab-nav-container">
       <button class="tab-btn active" data-target="tab-news">
-        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l6 6v10a2 2 0 01-2 2z"></path></svg>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l6 6v10a2 2 0 01-2 2z"></path></svg>
         情報速報
       </button>
       <button class="tab-btn" data-target="tab-dashboard">
-        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18M18 9l-5 5-4-4-5 5"></path></svg>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18M18 9l-5 5-4-4-5 5"></path></svg>
         股市儀表板
       </button>
       <button class="tab-btn" data-target="tab-video">
-        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>
         影音專區
       </button>
     </div>
@@ -110,79 +89,36 @@
         <h2>市場全景</h2>
         <p>掌握全球股市脈動與總經指標即時動態</p>
       </div>
-      
-      <!-- TradingView Advanced Chart -->
-      <div class="tv-widget-box chart-main">
-        <div class="tradingview-widget-container" style="height:100%;width:100%">
-          <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-          {
-          "autosize": true,
-          "symbol": "TWSE:TAIEX",
-          "interval": "D",
-          "timezone": "Asia/Taipei",
-          "theme": "dark",
-          "style": "1",
-          "locale": "zh_TW",
-          "enable_publishing": false,
-          "backgroundColor": "rgba(13, 13, 13, 1)",
-          "gridColor": "rgba(42, 46, 57, 0.06)",
-          "hide_top_toolbar": false,
-          "hide_legend": false,
-          "save_image": false,
-          "container_id": "tradingview_a1b2",
-          "watchlist": [
-            "TWSE:TAIEX",
-            "SP:SPX",
-            "NASDAQ:NDX",
-            "TVC:DJI",
-            "TWSE:0050"
-          ]
-        }
-          </script>
-        </div>
-      </div>
 
-      <!-- 台股熱門排行 -->
-      <div class="tv-widget-label">台股熱門排行</div>
-      <div class="tv-widget-box heat-box">
+      <!-- ① 重要經濟行事曆 -->
+      <div class="macro-calendar-wrap" style="margin-bottom:1.5rem">
+        <div class="macro-calendar-header">
+          <span class="macro-label">重要經濟數據行事曆</span>
+          <span class="macro-tooltip-icon" data-tip="顯示未來重要總經數據發布時程，包含 CPI、NFP、FOMC 利率決策、GDP 等。橙色 = 高重要性；黃色 = 中；白色 = 低。">ⓘ</span>
+        </div>
         <div class="tradingview-widget-container">
           <div class="tradingview-widget-container__widget"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-hotlists.js" async>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
           {
           "colorTheme": "dark",
-          "dateRange": "12M",
-          "exchange": "TWSE",
-          "showChart": true,
-          "locale": "zh_TW",
-          "width": "100%",
-          "height": "100%",
-          "largeChartUrl": "",
           "isTransparent": true,
-          "showSymbolLogo": true,
-          "showFloatingTooltip": false,
-          "plotLineColorGrowing": "rgba(41, 98, 255, 1)",
-          "plotLineColorFalling": "rgba(41, 98, 255, 1)",
-          "gridLineColor": "rgba(42, 46, 57, 0)",
-          "scaleFontColor": "rgba(209, 212, 220, 1)",
-          "belowLineFillColorGrowing": "rgba(41, 98, 255, 0.12)",
-          "belowLineFillColorFalling": "rgba(41, 98, 255, 0.12)",
-          "belowLineFillColorGrowingBottom": "rgba(41, 98, 255, 0)",
-          "belowLineFillColorFallingBottom": "rgba(41, 98, 255, 0)",
-          "symbolActiveColor": "rgba(41, 98, 255, 0.12)"
-        }
+          "width": "100%",
+          "height": "400",
+          "locale": "zh_TW",
+          "importanceFilter": "0,1",
+          "countryFilter": "us,tw,cn,jp,eu,gb"
+          }
           </script>
         </div>
       </div>
 
-      <!-- ── 總經指標雷達 ── -->
+      <!-- ② 總經指標雷達 -->
       <div class="macro-section">
         <div class="macro-header">
           <h3 class="macro-title">總經指標雷達</h3>
-          <span class="macro-updated-note">資料來源：TradingView · 即時報價</span>
+          <span class="macro-updated-note" id="macro-update-time">資料來源：Yahoo Finance · 載入中…</span>
         </div>
 
-        <!-- 指標快卡 Grid -->
         <div class="macro-grid">
 
           <!-- VIX -->
@@ -191,67 +127,62 @@
               <span class="macro-label">VIX 恐慌指數</span>
               <span class="macro-tooltip-icon" data-tip="VIX（CBOE 波動率指數）：衡量未來 30 天 S&P 500 的預期波動率。數值 > 30 代表市場恐慌；< 15 代表市場平靜。股市大跌時通常急升。">ⓘ</span>
             </div>
-            <div class="tradingview-widget-container macro-tv">
-              <div class="tradingview-widget-container__widget"></div>
-              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
-              {"symbol":"CBOE:VIX","width":"100%","colorTheme":"dark","isTransparent":true,"locale":"zh_TW"}
-              </script>
+            <div class="macro-data" data-key="vix" data-color="#ef4444">
+              <div class="macro-price-num">—</div>
+              <div class="macro-price-chg">—</div>
+              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
             </div>
           </div>
 
-          <!-- US 10Y 公債殖利率 -->
+          <!-- US 10Y -->
           <div class="macro-card">
             <div class="macro-card-top">
-              <span class="macro-label">美國 10 年期公債殖利率</span>
+              <span class="macro-label">美國 10Y 殖利率</span>
               <span class="macro-tooltip-icon" data-tip="美國 10 年期公債殖利率：長期利率基準。殖利率上升 → 資金成本增加，股市承壓；下降 → 有利成長股。聯準會升降息的重要風向球。">ⓘ</span>
             </div>
-            <div class="tradingview-widget-container macro-tv">
-              <div class="tradingview-widget-container__widget"></div>
-              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
-              {"symbol":"TVC:US10Y","width":"100%","colorTheme":"dark","isTransparent":true,"locale":"zh_TW"}
-              </script>
+            <div class="macro-data" data-key="us10y" data-color="#eab308">
+              <div class="macro-price-num">—</div>
+              <div class="macro-price-chg">—</div>
+              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
             </div>
           </div>
 
-          <!-- DXY 美元指數 -->
+          <!-- DXY -->
           <div class="macro-card">
             <div class="macro-card-top">
               <span class="macro-label">DXY 美元指數</span>
               <span class="macro-tooltip-icon" data-tip="美元指數（DXY）：衡量美元對一籃子主要貨幣的強弱。指數上升 → 美元強勢，通常對新興市場與商品價格形成壓力；下降 → 有利台股外資回流。">ⓘ</span>
             </div>
-            <div class="tradingview-widget-container macro-tv">
-              <div class="tradingview-widget-container__widget"></div>
-              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
-              {"symbol":"TVC:DXY","width":"100%","colorTheme":"dark","isTransparent":true,"locale":"zh_TW"}
-              </script>
+            <div class="macro-data" data-key="dxy" data-color="#2962ff">
+              <div class="macro-price-num">—</div>
+              <div class="macro-price-chg">—</div>
+              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
             </div>
           </div>
 
           <!-- 黃金 -->
           <div class="macro-card">
             <div class="macro-card-top">
-              <span class="macro-label">黃金期貨</span>
-              <span class="macro-tooltip-icon" data-tip="黃金（COMEX GC1!）：避險資產首選。通脹上升、地緣政治風險、美元走弱時傾向上漲。金價與美債實際殖利率通常呈負相關。">ⓘ</span>
+              <span class="macro-label">黃金現貨</span>
+              <span class="macro-tooltip-icon" data-tip="黃金（GC Futures）：避險資產首選。通脹上升、地緣政治風險、美元走弱時傾向上漲。金價與美債實際殖利率通常呈負相關。">ⓘ</span>
             </div>
-            <div class="tradingview-widget-container macro-tv">
-              <div class="tradingview-widget-container__widget"></div>
-              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
-              {"symbol":"COMEX:GC1!","width":"100%","colorTheme":"dark","isTransparent":true,"locale":"zh_TW"}
-              </script>
+            <div class="macro-data" data-key="gold" data-color="#f59e0b">
+              <div class="macro-price-num">—</div>
+              <div class="macro-price-chg">—</div>
+              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
             </div>
           </div>
 
           <!-- WTI 原油 -->
           <div class="macro-card">
             <div class="macro-card-top">
-              <span class="macro-label">WTI 原油期貨</span>
-              <span class="macro-tooltip-icon" data-tip="WTI 原油（NYMEX CL1!）：全球主要原油基準價。油價上漲推升通膨，影響聯準會利率決策。對航運、石化、能源類股有直接影響。">ⓘ</span>
+              <span class="macro-label">WTI 原油</span>
+              <span class="macro-tooltip-icon" data-tip="WTI 原油（CL Futures）：全球主要原油基準價。油價上漲推升通膨，影響聯準會利率決策。對航運、石化、能源類股有直接影響。">ⓘ</span>
             </div>
-            <div class="tradingview-widget-container macro-tv">
-              <div class="tradingview-widget-container__widget"></div>
-              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
-              {"symbol":"NYMEX:CL1!","width":"100%","colorTheme":"dark","isTransparent":true,"locale":"zh_TW"}
-              </script>
+            <div class="macro-data" data-key="wti" data-color="#f97316">
+              <div class="macro-price-num">—</div>
+              <div class="macro-price-chg">—</div>
+              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
             </div>
           </div>
 
@@ -276,27 +207,38 @@
           </div>
 
         </div>
+      </div>
 
-        <!-- 重要經濟數據行事曆 -->
-        <div class="macro-calendar-wrap">
-          <div class="macro-calendar-header">
-            <span class="macro-label">重要經濟數據行事曆</span>
-            <span class="macro-tooltip-icon" data-tip="顯示未來重要總經數據發布時程，包含 CPI、NFP、FOMC 利率決策、GDP 等。橙色 = 高重要性；黃色 = 中；白色 = 低。">ⓘ</span>
-          </div>
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
-            {
-            "colorTheme": "dark",
-            "isTransparent": true,
-            "width": "100%",
-            "height": "400",
-            "locale": "zh_TW",
-            "importanceFilter": "0,1",
-            "countryFilter": "us,tw,cn,jp,eu,gb"
+      <!-- ③ 美股 & 台股走勢圖 -->
+      <div class="tv-widget-label" style="margin-top:2rem">美股 &amp; 台股走勢圖</div>
+      <div class="tv-widget-box chart-main">
+        <div class="tradingview-widget-container" style="height:100%;width:100%">
+          <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {
+          "autosize": true,
+          "symbol": "TWSE:TAIEX",
+          "interval": "D",
+          "timezone": "Asia/Taipei",
+          "theme": "dark",
+          "style": "1",
+          "locale": "zh_TW",
+          "enable_publishing": false,
+          "backgroundColor": "rgba(10, 10, 10, 1)",
+          "gridColor": "rgba(42, 46, 57, 0.06)",
+          "hide_top_toolbar": false,
+          "hide_legend": false,
+          "save_image": false,
+          "withdateranges": true,
+          "watchlist": [
+            "TWSE:TAIEX",
+            "TWSE:0050",
+            "SP:SPX",
+            "NASDAQ:NDX",
+            "TVC:DJI"
+          ]
           }
-            </script>
-          </div>
+          </script>
         </div>
       </div>
 
@@ -310,7 +252,6 @@
       </div>
 
       <div class="yt-channel-wrapper">
-        <!-- Channel Hero Card -->
         <div class="yt-hero-card">
           <div class="yt-hero-icon">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -330,7 +271,6 @@
           </a>
         </div>
 
-        <!-- YouTube Latest Videos Embed (replace YOUR_CHANNEL_ID with actual ID) -->
         <div class="yt-embed-container">
           <iframe
             src="https://www.youtube.com/embed?listType=user_uploads&list=UCIEr1HSgijuXq6S2L1R0T9A&rel=0&modestbranding=1"
@@ -351,16 +291,13 @@
 
   <footer class="site-footer">
     <div class="container">
-      <!-- Social Media Icons -->
       <div class="footer-social">
-        <!-- YouTube -->
         <a href="https://www.youtube.com/@StockRadar888" class="social-link social-yt" target="_blank" rel="noopener noreferrer" aria-label="YouTube 頻道">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M21.8 8.001a2.75 2.75 0 0 0-1.937-1.952C18.198 5.6 12 5.6 12 5.6s-6.198 0-7.863.449A2.75 2.75 0 0 0 2.2 8.001 28.8 28.8 0 0 0 1.75 12a28.8 28.8 0 0 0 .45 3.999 2.75 2.75 0 0 0 1.937 1.952C5.802 18.4 12 18.4 12 18.4s6.198 0 7.863-.449A2.75 2.75 0 0 0 21.8 15.999 28.8 28.8 0 0 0 22.25 12a28.8 28.8 0 0 0-.45-3.999z"/>
             <polygon fill="var(--surface)" points="9.75,15.02 15.5,12 9.75,8.98"/>
           </svg>
         </a>
-        <!-- Instagram -->
         <a href="https://www.instagram.com/YOUR_IG_HERE" class="social-link social-ig" target="_blank" rel="noopener noreferrer" aria-label="Instagram" style="display:none">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
@@ -368,10 +305,9 @@
             <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none"/>
           </svg>
         </a>
-        <!-- Threads -->
         <a href="https://www.threads.net/@YOUR_THREADS_HERE" class="social-link social-threads" target="_blank" rel="noopener noreferrer" aria-label="Threads" style="display:none">
           <svg width="20" height="20" viewBox="0 0 192 192" fill="currentColor" aria-hidden="true">
-            <path d="M141.537 88.988c-.878-.397-1.718-.779-2.569-1.143-1.482-27.307-16.403-42.94-41.457-43.1h-.1c-14.986 0-27.449 6.397-35.12 18.037l13.779 9.452c5.73-8.695 14.724-10.548 21.348-10.548.076 0 .152 0 .228.001 8.25.056 14.475 2.454 18.504 7.131 2.931 3.405 4.893 8.112 5.864 14.05-7.314-1.243-15.224-1.625-23.68-1.14-23.82 1.372-39.134 15.265-38.105 34.569.521 9.792 5.399 18.216 13.734 23.719 7.048 4.652 16.124 6.927 25.557 6.412 12.457-.683 22.318-5.802 29.108-15.561 4.978-7.456 8.14-17.623 9.435-31.007 5.491 3.294 9.519 8.004 11.554 13.972 3.552 10.194 3.79 27.507-9.275 40.609-11.358 11.4-24.824 16.5-44.355 16.638-21.741-.145-38.264-6.861-49.942-20.078-11.045-12.381-16.228-30.151-16.452-52.748.224-22.597 5.407-40.366 16.452-52.747C68.27 34.127 84.793 27.41 106.534 27.254c22.179.157 38.938 6.898 49.698 20.058 5.254 6.401 9.244 14.459 11.902 23.874l15.958-4.362c-3.323-11.683-8.378-21.839-15.128-30.314C154.049 19.827 135.328 11.582 104.913 11.39c-30.773 1.933-49.77 10.254-62.745 26.382C31.544 52.257 25.524 72.931 25.3 100.93v.075c.224 27.999 6.244 48.673 16.868 63.181 12.975 16.128 31.972 24.449 62.745 24.64 28.307-.176 47.436-8.294 61-21.886 16.866-16.909 16.451-38.605 11.485-52.736-3.654-10.382-10.636-18.852-27.125-22.348l.264.132z M103.394 116.612c-.064-1.017.019-2.019.247-3.001 1.002.616 2.116 1.088 3.302 1.391 2.73.706 5.453.574 7.797-.374l.104-.046c-.358.997-.906 1.884-1.62 2.607-.982 1.006-2.226 1.584-3.686 1.716-1.81.163-3.329-.356-4.379-1.499a3.51 3.51 0 0 1-.765-2.294zm10.2-5.706c-2.17-.562-3.842-1.721-4.862-3.35-.767-1.228-1.104-2.688-.974-4.187.254-2.962 2.321-5.11 5.608-5.72a12.46 12.46 0 0 1 2.233-.201c.922 0 1.816.098 2.665.288-.048.614-.118 1.218-.209 1.807-.463 2.99-1.529 5.432-3.07 7.067-.537.569-1.113 1.033-1.726 1.392.113.299.23.598.335.904z"/>
+            <path d="M141.537 88.988c-.878-.397-1.718-.779-2.569-1.143-1.482-27.307-16.403-42.94-41.457-43.1h-.1c-14.986 0-27.449 6.397-35.12 18.037l13.779 9.452c5.73-8.695 14.724-10.548 21.348-10.548.076 0 .152 0 .228.001 8.25.056 14.475 2.454 18.504 7.131 2.931 3.405 4.893 8.112 5.864 14.05-7.314-1.243-15.224-1.625-23.68-1.14-23.82 1.372-39.134 15.265-38.105 34.569.521 9.792 5.399 18.216 13.734 23.719 7.048 4.652 16.124 6.927 25.557 6.412 12.457-.683 22.318-5.802 29.108-15.561 4.978-7.456 8.14-17.623 9.435-31.007 5.491 3.294 9.519 8.004 11.554 13.972 3.552 10.194 3.79 27.507-9.275 40.609-11.358 11.4-24.824 16.5-44.355 16.638-21.741-.145-38.264-6.861-49.942-20.078-11.045-12.381-16.228-30.151-16.452-52.748.224-22.597 5.407-40.366 16.452-52.747C68.27 34.127 84.793 27.41 106.534 27.254c22.179.157 38.938 6.898 49.698 20.058 5.254 6.401 9.244 14.459 11.902 23.874l15.958-4.362c-3.323-11.683-8.378-21.839-15.128-30.314C154.049 19.827 135.328 11.582 104.913 11.39c-30.773 1.933-49.77 10.254-62.745 26.382C31.544 52.257 25.524 72.931 25.3 100.93v.075c.224 27.999 6.244 48.673 16.868 63.181 12.975 16.128 31.972 24.449 62.745 24.64 28.307-.176 47.436-8.294 61-21.886 16.866-16.909 16.451-38.605 11.485-52.736-3.654-10.382-10.636-18.852-27.125-22.348l.264.132z"/>
           </svg>
         </a>
       </div>
@@ -382,7 +318,7 @@
     </div>
   </footer>
 
-  <!-- FAB: Radar / AI -->
+  <!-- FAB: AI Chat -->
   <button class="fab" id="fab" aria-label="AI 雷達分析" title="詢問今日情報">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
