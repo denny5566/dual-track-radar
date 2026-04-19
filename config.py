@@ -84,6 +84,7 @@ if FFMPEG_LOCATION and FFMPEG_LOCATION not in os.environ.get("PATH", ""):
 
 # ── YouTube 上傳（OAuth2）───────────────────────────────────────────────────
 # 首次取得 refresh_token：python publish_video.py --auth
+YOUTUBE_API_KEY       = os.getenv("YOUTUBE_API_KEY", "")
 YOUTUBE_CLIENT_ID     = os.getenv("YOUTUBE_CLIENT_ID", "")
 YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET", "")
 YOUTUBE_REFRESH_TOKEN = os.getenv("YOUTUBE_REFRESH_TOKEN", "")
