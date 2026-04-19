@@ -211,7 +211,7 @@ async def _run_pipeline_with_progress(
 
         # Step 1: 語音辨識（字幕 API 成功時自動跳過）
         captions_fetched = all(
-            v.get("transcript_source") == "youtube_captions"
+            v.get("transcript_source") in ("youtube_captions", "github_actions")
             for v in download_results.values()
         ) if download_results else False
 

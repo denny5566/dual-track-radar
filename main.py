@@ -60,15 +60,55 @@ def step_download(url_overrides: dict[str, str] | None = None) -> dict:
     """
     Step 1：取得逐字稿。
 
-    優先策略（字幕 API）：
-      YouTube Data API v3 找到最新影片 ID → youtube-transcript-api 取字幕。
-      不需下載音檔，不受 Oracle VM datacenter IP 封鎖影響。
-
-    Fallback（yt-dlp 下載）：
-      字幕不可用時（影片未處理完、字幕停用）才啟動音檔下載。
-      在 VM 上通常失敗，但本機執行可成功（download_helper.py 路徑）。
+    策略優先順序：
+      1. GitHub Actions 預取（data/transcripts/，每日 07:00 由 GA 自動擷取並 git commit）
+         → Oracle VM git pull 後立即可用，完全不需 VM 碰 YouTube
+      2. youtube-transcript-api 字幕 API（VM 直接呼叫，游庭澔頻道通常可用）
+      3. yt-dlp 音檔下載 Fallback（本機可用，VM 上被封鎖）
     """
-    log.info("=== Step 1：取得逐字稿（字幕 API 優先，url_overrides=%s）===", url_overrides)
+    import datetime
+    from config import CHANNELS as _CHANNELS
+
+    log.info("=== Step 1：取得逐字稿（GA 預取 → 字幕 API → yt-dlp，url_overrides=%s）===", url_overrides)
+
+    # ── 優先：GitHub Actions 預取逐字稿 ──────────────────────────────────────
+    # GA 每天 07:00 AM 在 GitHub runner（非封鎖 IP）擷取，git commit 至 data/transcripts/
+    # VM 端 docker-compose 掛載 ./data:/app/data，git pull 後容器直接可見
+    if not url_overrides:  # 指定 URL 時跳過 GA，確保取到用戶指定的影片
+        ga_dir = BASE_DIR / "data" / "transcripts"
+        date_file = ga_dir / "fetch_date.txt"
+        today_str = datetime.date.today().isoformat()
+
+        if date_file.exists() and date_file.read_text(encoding="utf-8").strip() == today_str:
+            ga_results: dict = {}
+            for key in _CHANNELS:
+                txt_path = ga_dir / f"{key}.txt"
+                if txt_path.exists():
+                    text = txt_path.read_text(encoding="utf-8").strip()
+                    if text:
+                        TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
+                        (TRANSCRIPT_DIR / f"{key}.txt").write_text(text, encoding="utf-8")
+                        ga_results[key] = {
+                            "channel": key,
+                            "success": True,
+                            "transcript": text,
+                            "transcript_source": "github_actions",
+                            "audio_path": None,
+                            "video_url": None,
+                            "title": None,
+                            "video_date": None,
+                        }
+                        log.info("[GA] %s：%d 字", key, len(text))
+
+            if len(ga_results) == len(_CHANNELS):
+                log.info("✅ 所有頻道已由 GitHub Actions 預取，跳過 API 呼叫")
+                return ga_results
+
+            log.warning("⚠️ GitHub Actions 逐字稿不完整（%d/%d），繼續 API 擷取",
+                        len(ga_results), len(_CHANNELS))
+        else:
+            log.info("GitHub Actions 今日逐字稿尚未就緒（fetch_date=%s），繼續 API 擷取",
+                     date_file.read_text(encoding="utf-8").strip() if date_file.exists() else "無")
 
     # ── 字幕 API（主要方式）──────────────────────────────────────────────────
     try:
@@ -153,9 +193,17 @@ def step_analyze(transcripts: dict[str, str | None], video_date: str | None = No
           or load_cleaned_transcript("yu_ting_hao")
           or load_transcript("yu_ting_hao"))
 
-    if not ta or not tb:
-        log.error("[FAIL] 逐字稿缺失，無法進行分析")
+    if not ta and not tb:
+        log.error("[FAIL] 兩個頻道均無逐字稿，無法進行分析")
         return None
+
+    # 單頻道模式：一個頻道缺席時，用提示語告知 Claude
+    if not ta:
+        log.warning("[WARN] 群益期貨逐字稿缺失，使用單頻道模式（僅游庭澔）")
+        ta = "（本日群益期貨觀點逐字稿無法取得，請以游庭澔財經皓角的內容為主進行分析，雙軌比較欄位可標注「資料不足」）"
+    if not tb:
+        log.warning("[WARN] 游庭澔逐字稿缺失，使用單頻道模式（僅群益期貨）")
+        tb = "（本日游庭澔財經皓角逐字稿無法取得，請以群益期貨觀點的內容為主進行分析，雙軌比較欄位可標注「資料不足」）"
 
     data = analyze(ta, tb, today=video_date)
     log.info("[OK] 分析完成（日期：%s）：%s", data.get("meta", {}).get("date", "?"), data.get("daily_focus", ""))

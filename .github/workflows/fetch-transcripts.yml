@@ -1,0 +1,36 @@
+name: Daily Transcript Fetch
+
+on:
+  schedule:
+    # 23:00 UTC = 07:00 AM 台北時間（UTC+8），週一到週五
+    - cron: '0 23 * * 0-4'
+  workflow_dispatch:    # 允許手動觸發（測試 / 補跑用）
+
+jobs:
+  fetch-transcripts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 需要 push commit
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install youtube-transcript-api python-dotenv requests
+
+      - name: Fetch transcripts
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python fetch_transcripts_ga.py
+
+      - name: Commit and push transcripts
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add data/transcripts/
+          git diff --staged --quiet && echo "No changes" || \
+            git commit -m "chore: auto-fetch transcripts $(date -u +%Y-%m-%d)" && git push
