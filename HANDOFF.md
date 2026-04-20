@@ -1,9 +1,73 @@
 # 雙軌財經情報雷達 — 開發進度交接文件
 
-> 最後更新：2026-04-19（第七次）
+> 最後更新：2026-04-20（第八次）
 > 對應 PRD：PRD_v2.md
 
 ---
+
+## 目前現況摘要
+
+### 這次已補上的核心修正
+
+- `yt-dlp` 不再預設強制使用 `mweb/ios/android` client，改為交給 yt-dlp 自行選擇，降低 YouTube 要求 PO Token 導致的失敗率。
+- `config.py` 會自動偵測專案內 `cookies.txt`，也會自動設定 `node` 給 yt-dlp 解 JS challenge。
+- 指定舊影片 URL 時，若「帶 cookies 下載失敗」，現在會自動 fallback 成「不帶 cookies 再試一次」。
+- `main.py` 新增 `--video-date YYYY-MM-DD`，可正確補跑歷史日期，不會再把產出日期寫成今天。
+- Discord 控制面板已新增：
+  - `🗓️ 指定日期`
+  - `🧹 清理全部暫存`
+- VM 上的 Playwright Chromium 已補裝完成，Banner / PDF 渲染可正常執行。
+
+### 已驗證可成功的歷史重跑案例
+
+- 日期：`2026-04-16`
+- 群益期貨：`https://www.youtube.com/watch?v=jI5eVvdjWVQ`
+- 游庭皓：`https://www.youtube.com/watch?v=iUY1Ql7xFFI`
+- 本機與 VM 都已成功跑完整流程，且輸出日期已確認為 `2026-04-16`。
+
+### VM 時區與排程換算
+
+- VM 系統時區：`UTC`
+- 目前 crontab：
+
+```bash
+20 2 * * 1-5 cd ~/NTUAI_project && git pull >> ~/pipeline.log 2>&1 && docker compose run --rm radar python main.py --no-cleanup >> ~/pipeline.log 2>&1
+```
+
+- 這代表：
+  - `UTC`：週一到週五 `02:20`
+  - `Asia/Taipei`：週一到週五 `10:20`
+  - `America/New_York`：前一天 `20:20`（夏令時間）
+  - `America/Los_Angeles`：前一天 `17:20`（夏令時間）
+
+> 結論：如果要討論「美國時間看起來是不是前一天就跑了」，答案是 **對**，因為 VM 用的是 UTC，不是台北時區。
+
+### 目前最大的真實風險
+
+1. 自動排程雖然會準時觸發，但不保證每天都能從 VM 直接抓到 YouTube 音訊。
+2. 真正最穩的流程仍然是：
+   - GitHub Actions 預抓逐字稿
+   - 或 YouTube 字幕 API
+   - 都失敗時才 fallback 到下載音檔
+3. 若當天剛好遇到：
+   - GitHub Actions 沒有逐字稿
+   - 字幕 API 也失敗
+   - VM 又被 YouTube 擋下載
+   則自動流程仍可能失敗。
+4. Groq Whisper 偶爾會撞 rate limit，雖然現在會 fallback 到本地 `faster-whisper`，但執行時間會明顯變慢。
+5. `cookies.txt` 即使剛更新，也可能隨 YouTube/瀏覽器狀態再次失效，因此不能把 cookies 視為永久解法。
+
+### 現在建議的實際操作策略
+
+- 平日自動排程：先讓 VM 在 `10:20 Asia/Taipei` 自動跑。
+- 如果 Discord / log 顯示下載失敗：
+  - 本機啟動 `python local_listener.py`
+  - 在 Discord 按 `🖥️ 本機下載`
+  - 上傳完成後按 `⚙️ 重新分析`
+- 如果要補跑歷史內容：
+  - 優先使用 Discord `🗓️ 指定日期`
+  - 或 CLI：`python main.py --skip-download --video-date YYYY-MM-DD`
+
 
 ## 已完成項目
 

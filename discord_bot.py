@@ -671,7 +671,7 @@ class _ControlPanelView(discord.ui.View):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="🚀 立即執行完整流程",
+        label="🚀 今日完整流程",
         style=discord.ButtonStyle.success,
         custom_id="ctrl_force_run",
         row=0,
@@ -696,7 +696,7 @@ class _ControlPanelView(discord.ui.View):
         await _dm_owner(f"✅ 強制執行完成，請至 Discord 審核 {data.get('meta', {}).get('date', '')} 日報")
 
     @discord.ui.button(
-        label="📋 查看系統狀態",
+        label="📋 系統狀態",
         style=discord.ButtonStyle.secondary,
         custom_id="ctrl_status",
         row=0,
@@ -748,7 +748,7 @@ class _ControlPanelView(discord.ui.View):
         await interaction.followup.send(embed=trigger_embed)
 
     @discord.ui.button(
-        label="⚙️ 僅重新分析（不下載）",
+        label="⚙️ 重新分析",
         style=discord.ButtonStyle.secondary,
         custom_id="ctrl_reanalyze",
         row=1,
@@ -767,7 +767,7 @@ class _ControlPanelView(discord.ui.View):
         await interaction.followup.send("✅ 重新分析完成：", embed=embed, view=view)
 
     @discord.ui.button(
-        label="📥 指定 URL 下載",
+        label="📥 指定網址",
         style=discord.ButtonStyle.secondary,
         custom_id="ctrl_custom_url",
         row=2,
@@ -776,7 +776,7 @@ class _ControlPanelView(discord.ui.View):
         await interaction.response.send_modal(_CustomUrlModal())
 
     @discord.ui.button(
-        label="🗓️ 指定日期重跑",
+        label="🗓️ 指定日期",
         style=discord.ButtonStyle.primary,
         custom_id="ctrl_date_rerun",
         row=2,
@@ -824,17 +824,20 @@ def _build_control_panel_embed() -> discord.Embed:
     embed = discord.Embed(
         title="🎛️ 雙軌財經雷達 — 控制面板",
         description=(
-            "使用下方按鈕手動觸發管線，無需等待排程。\n\n"
-            "**🚀 立即執行完整流程** — VM 自動下載 → 辨識 → 分析 → 產出\n"
-            "**📋 查看系統狀態** — 顯示最近 5 筆執行記錄\n"
-            "**🖥️ 本機下載** — 觸發本機下載音檔並上傳 VM（需先開啟 local_listener.py）\n"
-            "**⚙️ 僅重新分析（不下載）** — 用已上傳的音檔直接分析\n"
-            "**📥 指定 URL 下載** — 填入 YouTube 網址下載特定影片\n"
-            "**🗓️ 指定日期重跑** — 依日期搜尋兩個頻道的當日影片並重跑\n"
-            "**🗑️ 清理逐字稿** — 清掉 output/transcripts/\n"
-            "**🧹 清理全部暫存** — 清掉音檔、逐字稿、分析、卡片、旁白與影片暫存\n\n"
-            "💡 **YouTube 被封鎖時的流程**：\n"
-            "本機執行 `python local_listener.py` → 按「🖥️ 本機下載」→ 按「⚙️ 僅重新分析」\n\n"
+            "用這個面板處理日常重跑、指定日期、指定網址與清理工作。\n\n"
+            "**建議日常流程**\n"
+            "1. 先按 `🚀 今日完整流程`\n"
+            "2. 若 VM 抓不到影片，再改走 `🖥️ 本機下載` → `⚙️ 重新分析`\n\n"
+            "**適用情境**\n"
+            "`🚀 今日完整流程`：跑今天最新內容\n"
+            "`🖥️ 本機下載`：VM 被 YouTube 擋住時改由本機下載上傳\n"
+            "`⚙️ 重新分析`：音檔已在 VM，只重跑分析\n"
+            "`📥 指定網址`：你已知道影片 URL\n"
+            "`🗓️ 指定日期`：想補跑某一天\n"
+            "`🗑️ 清理逐字稿`：只清 transcripts\n"
+            "`🧹 清理全部暫存`：清音檔 / 逐字稿 / 分析 / 卡片 / 影片暫存\n\n"
+            "💡 **本機下載前提**\n"
+            "本機要先執行 `python local_listener.py`，Discord 才能成功觸發下載。\n\n"
             f"Bot 上線時間：{datetime.now().strftime('%Y-%m-%d %H:%M')}"
         ),
         color=0x4f46e5,
