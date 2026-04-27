@@ -29,6 +29,7 @@ import logging
 import os
 import shutil
 import time
+from typing import Callable, TypeVar
 from pathlib import Path
 
 import requests
@@ -50,6 +51,34 @@ IG_API_VERSION = "v22.0"
 # YouTube OAuth2 端點
 YT_TOKEN_URI = "https://oauth2.googleapis.com/token"
 YT_SCOPES    = ["https://www.googleapis.com/auth/youtube.upload"]
+IG_PROCESS_TIMEOUT_SEC = int(os.getenv("IG_PROCESS_TIMEOUT_SEC", "900"))  # 預設最多等 15 分鐘
+IG_POLL_INTERVAL_SEC   = int(os.getenv("IG_POLL_INTERVAL_SEC", "10"))     # 預設每 10 秒輪詢
+
+T = TypeVar("T")
+
+
+def _run_with_retry(
+    action: str,
+    fn: Callable[[], T],
+    attempts: int = 3,
+    base_wait: float = 5.0,
+) -> T:
+    """
+    通用重試封裝：失敗後等待並重試，最後一次失敗才拋出例外。
+    """
+    last_exc: Exception | None = None
+    for idx in range(1, attempts + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            last_exc = exc
+            if idx >= attempts:
+                break
+            wait_s = base_wait * (2 ** (idx - 1))
+            log.warning("%s 失敗（第 %d/%d 次）：%s；%.1f 秒後重試", action, idx, attempts, exc, wait_s)
+            time.sleep(wait_s)
+    assert last_exc is not None
+    raise last_exc
 
 
 # ── YouTube ───────────────────────────────────────────────────────────────────
@@ -134,14 +163,13 @@ def upload_to_youtube(
         },
     }
 
-    media = MediaFileUpload(
-        str(video_path),
-        mimetype="video/mp4",
-        resumable=True,
-        chunksize=5 * 1024 * 1024,  # 5 MB per chunk
-    )
-
-    try:
+    def _upload_once() -> str:
+        media = MediaFileUpload(
+            str(video_path),
+            mimetype="video/mp4",
+            resumable=True,
+            chunksize=5 * 1024 * 1024,  # 5 MB per chunk
+        )
         request = youtube.videos().insert(
             part="snippet,status",
             body=body,
@@ -153,12 +181,16 @@ def upload_to_youtube(
             if status:
                 pct = int(status.progress() * 100)
                 log.info("[YouTube] 上傳進度：%d%%", pct)
-
         video_id = response.get("id", "")
+        if not video_id:
+            raise RuntimeError("YouTube API 未回傳 video_id")
+        return video_id
+
+    try:
+        video_id = _run_with_retry("[YouTube] 上傳", _upload_once, attempts=3, base_wait=8.0)
         url = f"https://www.youtube.com/watch?v={video_id}"
         log.info("[YouTube] 上傳完成：%s", url)
         return video_id
-
     except Exception as e:
         log.error("[YouTube] 上傳失敗：%s", e)
         return None
@@ -228,7 +260,7 @@ def upload_to_instagram(
 
     # Step 2：建立 Reels 容器
     log.info("[Instagram] 建立 Reels 容器...")
-    try:
+    def _create_container_once() -> str:
         r = requests.post(
             f"{base_api}/media",
             params={
@@ -239,17 +271,27 @@ def upload_to_instagram(
             },
             timeout=30,
         )
-        r.raise_for_status()
-        container_id = r.json()["id"]
+        if not r.ok:
+            log.error("[Instagram] 建立容器失敗（HTTP %s）：%s", r.status_code, r.text[:500])
+            r.raise_for_status()
+        container_id = r.json().get("id")
+        if not container_id:
+            raise RuntimeError("Instagram API 未回傳容器 ID")
+        return container_id
+
+    try:
+        container_id = _run_with_retry("[Instagram] 建立容器", _create_container_once, attempts=3, base_wait=6.0)
         log.info("[Instagram] 容器 ID：%s", container_id)
     except Exception as e:
         log.error("[Instagram] 建立容器失敗：%s", e)
         return None
 
-    # Step 3：輪詢容器狀態（最多等 5 分鐘）
+    # Step 3：輪詢容器狀態（預設最多等 15 分鐘，可由環境變數調整）
     log.info("[Instagram] 等待影片處理...")
-    for attempt in range(30):
-        time.sleep(10)
+    max_attempts = max(1, IG_PROCESS_TIMEOUT_SEC // max(1, IG_POLL_INTERVAL_SEC))
+    status_error_count = 0
+    for attempt in range(max_attempts):
+        time.sleep(max(1, IG_POLL_INTERVAL_SEC))
         try:
             r = requests.get(
                 f"https://graph.facebook.com/{IG_API_VERSION}/{container_id}",
@@ -262,7 +304,8 @@ def upload_to_instagram(
             r.raise_for_status()
             data = r.json()
             status_code = data.get("status_code", "")
-            log.info("[Instagram] 處理狀態（%d/30）：%s", attempt + 1, status_code)
+            log.info("[Instagram] 處理狀態（%d/%d）：%s", attempt + 1, max_attempts, status_code)
+            status_error_count = 0
 
             if status_code == "FINISHED":
                 break
@@ -270,14 +313,18 @@ def upload_to_instagram(
                 log.error("[Instagram] 影片處理失敗：%s", data.get("status", ""))
                 return None
         except Exception as e:
-            log.warning("[Instagram] 狀態查詢失敗（%d/30）：%s", attempt + 1, e)
+            status_error_count += 1
+            log.warning("[Instagram] 狀態查詢失敗（%d/%d）：%s", attempt + 1, max_attempts, e)
+            if status_error_count >= 6:
+                log.error("[Instagram] 連續狀態查詢失敗過多，停止等待")
+                return None
     else:
-        log.error("[Instagram] 影片處理逾時（5 分鐘）")
+        log.error("[Instagram] 影片處理逾時（%d 秒）", IG_PROCESS_TIMEOUT_SEC)
         return None
 
     # Step 4：發布
     log.info("[Instagram] 發布 Reels...")
-    try:
+    def _publish_once() -> str:
         r = requests.post(
             f"{base_api}/media_publish",
             params={
@@ -286,8 +333,16 @@ def upload_to_instagram(
             },
             timeout=30,
         )
-        r.raise_for_status()
-        media_id = r.json()["id"]
+        if not r.ok:
+            log.error("[Instagram] 發布失敗（HTTP %s）：%s", r.status_code, r.text[:500])
+            r.raise_for_status()
+        media_id = r.json().get("id")
+        if not media_id:
+            raise RuntimeError("Instagram API 未回傳 media_id")
+        return media_id
+
+    try:
+        media_id = _run_with_retry("[Instagram] 發布", _publish_once, attempts=3, base_wait=6.0)
         log.info("[Instagram] 發布完成：media_id=%s", media_id)
         return media_id
     except Exception as e:

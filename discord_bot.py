@@ -21,10 +21,12 @@ Bot 事件通知：
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import discord
 from discord import app_commands
@@ -58,6 +60,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 _pending_data: dict | None = None
 # 暫存已渲染的 PDF / Banner 路徑（避免發布時重複渲染）
 _pending_cards: tuple | None = None   # (banner_path, pdf_path)
+# 暫存已渲染的影片路徑，供 _VideoUploadView 按鈕使用
+_pending_video_paths: dict | None = None  # {"horizontal": Path|None, "vertical": Path|None, "data": dict}
+_PENDING_VIDEO_FILE = Path(__file__).parent / "data" / "pending_video_publish.json"
 
 
 # ── 工具函式 ──────────────────────────────────────────────────────────────────
@@ -133,6 +138,64 @@ def _build_progress_embed(steps: list[str], title: str = "⚙️ 管線執行中
         color=color,
         timestamp=datetime.now(),
     )
+
+
+def _save_pending_video_paths(payload: dict | None) -> None:
+    """將待發布影片狀態寫入磁碟，避免 Bot 重啟後遺失。"""
+    try:
+        _PENDING_VIDEO_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if not payload:
+            if _PENDING_VIDEO_FILE.exists():
+                _PENDING_VIDEO_FILE.unlink()
+            return
+        serializable = {
+            "horizontal": str(payload.get("horizontal")) if payload.get("horizontal") else None,
+            "vertical": str(payload.get("vertical")) if payload.get("vertical") else None,
+            "data": payload.get("data", {}),
+            "saved_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        _PENDING_VIDEO_FILE.write_text(
+            json.dumps(serializable, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception as e:
+        log.warning("寫入待發布影片狀態失敗：%s", e)
+
+
+def _load_pending_video_paths() -> dict | None:
+    """從磁碟讀取待發布影片狀態。"""
+    try:
+        if not _PENDING_VIDEO_FILE.exists():
+            return None
+        raw = json.loads(_PENDING_VIDEO_FILE.read_text(encoding="utf-8"))
+        horizontal = raw.get("horizontal")
+        vertical = raw.get("vertical")
+        payload = {
+            "horizontal": Path(horizontal) if horizontal else None,
+            "vertical": Path(vertical) if vertical else None,
+            "data": raw.get("data", {}) or {},
+        }
+        if payload["horizontal"] and not payload["horizontal"].exists():
+            payload["horizontal"] = None
+        if payload["vertical"] and not payload["vertical"].exists():
+            payload["vertical"] = None
+        if not payload["horizontal"] and not payload["vertical"]:
+            return None
+        return payload
+    except Exception as e:
+        log.warning("讀取待發布影片狀態失敗：%s", e)
+        return None
+
+
+def _get_pending_video_paths() -> dict | None:
+    """優先使用記憶體狀態，失敗時回退到磁碟狀態。"""
+    global _pending_video_paths
+    if _pending_video_paths:
+        return _pending_video_paths
+    loaded = _load_pending_video_paths()
+    if loaded:
+        _pending_video_paths = loaded
+    return loaded
 
 
 # ── 核心管線（逐步進度更新）────────────────────────────────────────────────────
@@ -374,125 +437,265 @@ async def _do_publish_daily(interaction: discord.Interaction, data: dict) -> Non
     await _dm_owner(f"✅ {data.get('meta', {}).get('date', '')} 日報已發布")
 
 
+def _update_videos_json(data: dict, yt_id: str, date_str: str) -> None:
+    """更新網站影音專區索引。"""
+    videos_path = Path(__file__).parent / "web" / "public" / "data" / "videos.json"
+    vdata = json.loads(videos_path.read_text(encoding="utf-8")) if videos_path.exists() else {"videos": []}
+    raw_title = (data.get("outputs") or {}).get("edm_subject", "")
+    clean = raw_title[raw_title.find("】") + 1:].strip() if "】" in raw_title else raw_title
+    title = (data.get("article") or {}).get("title") or clean or date_str
+    entry = {"video_id": yt_id, "date": date_str, "title": title}
+    vdata["videos"] = [v for v in vdata["videos"] if v.get("video_id") != yt_id]
+    vdata["videos"].insert(0, entry)
+    videos_path.write_text(json.dumps(vdata, ensure_ascii=False, indent=2), encoding="utf-8")
+    log.info("videos.json 已更新：%s（共 %d 筆）", yt_id, len(vdata["videos"]))
+
+
+# ── 影片上傳確認 View（渲染完成後出現）────────────────────────────────────────
+class _VideoUploadView(discord.ui.View):
+    """
+    渲染完成後顯示的上傳按鈕，讓使用者手動決定要上傳 YouTube 或 Instagram。
+    timeout=86400 代表 24 小時內有效。
+    """
+
+    def __init__(self):
+        super().__init__(timeout=86400)
+
+    @discord.ui.button(label="▶️ 上傳 YouTube", style=discord.ButtonStyle.danger, row=0)
+    async def upload_youtube_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        global _pending_video_paths
+        pending = _get_pending_video_paths()
+        if not pending:
+            await interaction.response.send_message("⚠️ 影片路徑已過期，請重新按「🎬 發布影片」渲染。", ephemeral=True)
+            return
+        await interaction.response.defer(thinking=True)
+        h_path = pending.get("horizontal")
+        data   = pending.get("data", {})
+        date_str = data.get("meta", {}).get("date", "")
+        if not h_path:
+            await interaction.followup.send("⚠️ 找不到橫式影片（1920×1080），渲染可能已失敗。")
+            return
+        try:
+            import main as m
+            loop = asyncio.get_event_loop()
+            yt_id = await loop.run_in_executor(None, lambda: m.step_publish_youtube(h_path, data))
+            if yt_id:
+                # 把 video_id 寫回 data 並更新網站 JSON
+                data["youtube_video_id"] = yt_id
+                try:
+                    await loop.run_in_executor(None, lambda: m.step_save_db(data))
+                except Exception as _e:
+                    log.warning("更新網站影片 ID 失敗：%s", _e)
+                # 更新影音專區 videos.json
+                try:
+                    await loop.run_in_executor(None, lambda: _update_videos_json(data, yt_id, date_str))
+                except Exception as _e:
+                    log.warning("videos.json 更新失敗：%s", _e)
+                url = f"https://www.youtube.com/watch?v={yt_id}"
+                await interaction.followup.send(
+                    embed=discord.Embed(title="✅ YouTube 上傳成功", description=url, color=0x22c55e)
+                )
+                await _dm_owner(f"▶️ {date_str} YouTube 上傳完成：{url}")
+                _pending_video_paths = {**pending, "data": data}
+                _save_pending_video_paths(_pending_video_paths)
+            else:
+                await interaction.followup.send("❌ YouTube 上傳失敗，請確認 OAuth2 憑證（YOUTUBE_REFRESH_TOKEN）。")
+        except Exception as e:
+            log.error("YouTube 上傳失敗：%s", e, exc_info=True)
+            await interaction.followup.send(f"❌ YouTube 上傳失敗：{str(e)[:200]}")
+
+    @discord.ui.button(label="📸 上傳 Instagram", style=discord.ButtonStyle.primary, row=0)
+    async def upload_instagram_btn(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        pending = _get_pending_video_paths()
+        if not pending:
+            await interaction.response.send_message("⚠️ 影片路徑已過期，請重新按「🎬 發布影片」渲染。", ephemeral=True)
+            return
+        await interaction.response.defer(thinking=True)
+        v_path   = pending.get("vertical")
+        data     = pending.get("data", {})
+        date_str = data.get("meta", {}).get("date", "")
+        if not v_path:
+            await interaction.followup.send("⚠️ 找不到直式影片（1080×1920），渲染可能已失敗。")
+            return
+        try:
+            import main as m
+            loop = asyncio.get_event_loop()
+            ig_id = await loop.run_in_executor(None, lambda: m.step_publish_instagram(v_path, data))
+            if ig_id:
+                await interaction.followup.send(
+                    embed=discord.Embed(title="✅ Instagram 上傳成功", description=f"media_id: `{ig_id}`", color=0x22c55e)
+                )
+                await _dm_owner(f"📸 {date_str} Instagram 上傳完成（media_id={ig_id}）")
+            else:
+                await interaction.followup.send("❌ Instagram 上傳失敗，請確認 IG_ACCESS_TOKEN / IG_VIDEO_BASE_URL。")
+        except Exception as e:
+            log.error("Instagram 上傳失敗：%s", e, exc_info=True)
+            await interaction.followup.send(f"❌ Instagram 上傳失敗：{str(e)[:200]}")
+
+
 async def _do_publish_video(interaction: discord.Interaction, data: dict) -> None:
     """
-    執行完整影片流程：渲染（Remotion）→ 上傳 YouTube → 上傳 Instagram Reels。
-    各步驟獨立報告，單一失敗不中斷後續步驟。
+    執行影片渲染（Remotion）後自動上傳。
+    若任一平台失敗，提供按鈕讓使用者手動重試。
     """
-    loop = asyncio.get_event_loop()
+    global _pending_video_paths
+    loop     = asyncio.get_event_loop()
     date_str = data.get("meta", {}).get("date", "")
 
-    # ── Step 1：渲染（~5~10 分鐘）────────────────────────────────────────────
-    steps = [
-        "⬜ 更新影片資料 + 渲染（約 5–10 分鐘）",
-        "⬜ 上傳至 YouTube",
-        "⬜ 上傳至 Instagram Reels",
-    ]
+    # ── 渲染（~5~10 分鐘）────────────────────────────────────────────────────
+    steps = ["⬜ 更新影片資料 + 渲染（約 5–10 分鐘）"]
     progress_msg = await interaction.followup.send(
-        embed=_build_progress_embed(steps, title="🎬 影片發布流程")
+        embed=_build_progress_embed(steps, title="🎬 影片渲染中")
     )
+
+    async def safe_progress_edit(embed: discord.Embed) -> None:
+        try:
+            await progress_msg.edit(embed=embed)
+        except Exception as e:
+            # 長流程下 interaction webhook token 可能過期；改用 followup 回報，避免整段中斷
+            log.warning("進度訊息更新失敗（改用 followup）：%s", e)
+            try:
+                await interaction.followup.send(embed=embed)
+            except Exception:
+                pass
 
     async def set_step(idx: int, icon: str) -> None:
         line = steps[idx]
-        for old in ("⬜", "🔄", "✅", "❌", "⏭️"):
+        for old in ("⬜", "🔄", "✅", "❌"):
             line = line.replace(old, icon, 1)
         steps[idx] = line
-        try:
-            await progress_msg.edit(embed=_build_progress_embed(steps, title="🎬 影片發布流程"))
-        except Exception:
-            pass
+        await safe_progress_edit(_build_progress_embed(steps, title="🎬 影片渲染中"))
 
-    # 渲染
     await set_step(0, "🔄")
     try:
         import main as m
         video_paths: dict = await loop.run_in_executor(None, lambda: m.step_render_video(data))
+        h_path = video_paths.get("horizontal")
+        v_path = video_paths.get("vertical")
+
+        if not h_path and not v_path:
+            raise RuntimeError("橫式與直式影片均渲染失敗，請確認 Remotion / Node.js 環境")
+
         await set_step(0, "✅")
 
-        # DM Banner 預覽（影片檔案太大，以 Banner 圖代替）
+        # 儲存路徑供失敗時手動重試（寫入記憶體 + 磁碟）
+        _pending_video_paths = {**video_paths, "data": data}
+        _save_pending_video_paths(_pending_video_paths)
+
+        # 先回報渲染結果
+        detail_lines = []
+        if h_path:
+            detail_lines.append(f"✅ 橫式 1920×1080（YouTube）：`{h_path.name}`")
+        if v_path:
+            detail_lines.append(f"✅ 直式 1080×1920（Instagram）：`{v_path.name}`")
+        await interaction.followup.send(
+            embed=discord.Embed(
+                title="🎬 渲染完成，開始自動上傳",
+                description="\n".join(detail_lines),
+                color=0x22c55e,
+                timestamp=datetime.now(),
+            )
+        )
+
+        # 自動上傳：YouTube
+        yt_id: str | None = None
+        yt_url: str | None = None
+        if h_path:
+            try:
+                yt_id = await loop.run_in_executor(None, lambda: m.step_publish_youtube(h_path, data))
+                if yt_id:
+                    yt_url = f"https://www.youtube.com/watch?v={yt_id}"
+                    data["youtube_video_id"] = yt_id
+                    _pending_video_paths = {**_pending_video_paths, "data": data}
+                    _save_pending_video_paths(_pending_video_paths)
+                    try:
+                        await loop.run_in_executor(None, lambda: m.step_save_db(data))
+                    except Exception as _e:
+                        log.warning("更新網站影片 ID 失敗：%s", _e)
+                    try:
+                        await loop.run_in_executor(None, lambda: _update_videos_json(data, yt_id, date_str))
+                    except Exception as _e:
+                        log.warning("videos.json 更新失敗：%s", _e)
+            except Exception as _e:
+                log.error("YouTube 自動上傳失敗：%s", _e, exc_info=True)
+
+        # 自動上傳：Instagram
+        ig_id: str | None = None
+        if v_path:
+            try:
+                ig_id = await loop.run_in_executor(None, lambda: m.step_publish_instagram(v_path, data))
+            except Exception as _e:
+                log.error("Instagram 自動上傳失敗：%s", _e, exc_info=True)
+
+        summary_lines = []
+        if h_path:
+            if yt_url:
+                summary_lines.append(f"✅ YouTube 自動上傳成功：{yt_url}")
+            else:
+                summary_lines.append("❌ YouTube 自動上傳失敗")
+        if v_path:
+            if ig_id:
+                summary_lines.append(f"✅ Instagram 自動上傳成功：media_id `{ig_id}`")
+            else:
+                summary_lines.append("❌ Instagram 自動上傳失敗")
+
+        failed_platforms = []
+        if h_path and not yt_id:
+            failed_platforms.append("YouTube")
+        if v_path and not ig_id:
+            failed_platforms.append("Instagram")
+
+        if failed_platforms:
+            summary_lines.append("")
+            summary_lines.append("你可以按下方按鈕手動重試失敗平台（按鈕有效期 24 小時）")
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="⚠️ 自動上傳部分失敗",
+                    description="\n".join(summary_lines),
+                    color=0xf59e0b,
+                    timestamp=datetime.now(),
+                ),
+                view=_VideoUploadView(),
+            )
+        else:
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="✅ 自動上傳完成",
+                    description="\n".join(summary_lines),
+                    color=0x22c55e,
+                    timestamp=datetime.now(),
+                )
+            )
+            _pending_video_paths = None
+            _save_pending_video_paths(None)
+
+        # DM 通知 owner（附 Banner 預覽）
+        dm_content = f"🎬 **{date_str} 影片發布結果**\n" + "\n".join(summary_lines)
         if OWNER_ID and _pending_cards and _pending_cards[0]:
             try:
                 from pathlib import Path as _Path
                 banner_p = _Path(str(_pending_cards[0]))
                 if banner_p.exists():
                     owner = await bot.fetch_user(OWNER_ID)
-                    await owner.send(
-                        content=f"🎬 **{date_str} 影片已渲染完成**\n請確認 Banner 預覽，回頻道按「▶️ YouTube」或「📸 Instagram」上傳。",
-                        file=discord.File(str(banner_p), filename=banner_p.name),
-                    )
+                    await owner.send(content=dm_content, file=discord.File(str(banner_p), filename=banner_p.name))
+                else:
+                    await _dm_owner(dm_content)
             except Exception as _e:
-                log.warning("Banner DM 傳送失敗：%s", _e)
+                log.warning("DM 傳送失敗：%s", _e)
+                await _dm_owner(dm_content)
+        else:
+            await _dm_owner(dm_content)
+
     except Exception as e:
         log.error("影片渲染失敗：%s", e, exc_info=True)
         await set_step(0, "❌")
-        for i in [1, 2]:
-            await set_step(i, "⏭️")
-        await progress_msg.edit(
-            embed=_build_progress_embed(
-                steps + [f"\n**錯誤：** {str(e)[:300]}"],
-                title="❌ 影片渲染失敗", color=0xef4444,
+        await safe_progress_edit(
+            _build_progress_embed(
+              steps + [f"\n**錯誤：** {str(e)[:300]}"],
+              title="❌ 影片渲染失敗", color=0xef4444,
             )
         )
-        await _dm_owner(f"⚠️ 影片渲染失敗\n錯誤：{e}")
-        return
-
-    h_path = video_paths.get("horizontal")
-    v_path = video_paths.get("vertical")
-    result_lines: list[str] = []
-
-    # ── Step 2：YouTube（橫式）───────────────────────────────────────────────
-    if h_path:
-        await set_step(1, "🔄")
-        try:
-            yt_id = await loop.run_in_executor(None, lambda: m.step_publish_youtube(h_path, data))
-            if yt_id:
-                await set_step(1, "✅")
-                result_lines.append(f"▶️ YouTube：https://www.youtube.com/watch?v={yt_id}")
-                # 把 video_id 寫回 data 並更新網站資料 JSON（供影音專區嵌入）
-                data["youtube_video_id"] = yt_id
-                try:
-                    await loop.run_in_executor(None, lambda: m.step_save_db(data))
-                    log.info("[OK] youtube_video_id 已更新至網站 JSON：%s", yt_id)
-                except Exception as _save_err:
-                    log.warning("更新網站影片 ID 失敗：%s", _save_err)
-            else:
-                await set_step(1, "❌")
-                result_lines.append("▶️ YouTube：上傳失敗（請檢查 OAuth2 憑證）")
-        except Exception as e:
-            log.error("YouTube 上傳失敗：%s", e)
-            await set_step(1, "❌")
-            result_lines.append(f"▶️ YouTube：❌ {str(e)[:100]}")
-    else:
-        await set_step(1, "⏭️")
-        result_lines.append("▶️ YouTube：渲染失敗，略過")
-
-    # ── Step 3：Instagram Reels（直式）──────────────────────────────────────
-    if v_path:
-        await set_step(2, "🔄")
-        try:
-            ig_id = await loop.run_in_executor(None, lambda: m.step_publish_instagram(v_path, data))
-            if ig_id:
-                await set_step(2, "✅")
-                result_lines.append(f"📸 Instagram：發布成功（media_id={ig_id}）")
-            else:
-                await set_step(2, "❌")
-                result_lines.append("📸 Instagram：上傳失敗（請檢查 IG_ACCESS_TOKEN / IG_VIDEO_BASE_URL）")
-        except Exception as e:
-            log.error("Instagram 上傳失敗：%s", e)
-            await set_step(2, "❌")
-            result_lines.append(f"📸 Instagram：❌ {str(e)[:100]}")
-    else:
-        await set_step(2, "⏭️")
-        result_lines.append("📸 Instagram：渲染失敗，略過")
-
-    # 最終摘要
-    any_success = "✅" in steps[1] or "✅" in steps[2]
-    title  = "✅ 影片發布完成" if any_success else "⚠️ 影片發布（部分失敗）"
-    color  = 0x22c55e if any_success else 0xf59e0b
-    await progress_msg.edit(
-        embed=_build_progress_embed(steps + [""] + result_lines, title=title, color=color)
-    )
-    await _dm_owner(f"🎬 {date_str} 影片發布完成\n" + "\n".join(result_lines))
+        await _dm_owner(f"⚠️ {date_str} 影片渲染失敗\n錯誤：{e}")
 
 
 # ── 指定 URL 下載 Modal ───────────────────────────────────────────────────────
@@ -957,6 +1160,13 @@ async def on_ready():
 
     await bot.tree.sync()
     log.info("Bot 已上線：%s（ID: %s）", bot.user, bot.user.id)
+    pending = _load_pending_video_paths()
+    if pending:
+        log.info(
+            "偵測到待發布影片：horizontal=%s vertical=%s",
+            bool(pending.get("horizontal")),
+            bool(pending.get("vertical")),
+        )
 
     # 在指定頻道發布控制面板
     if CHANNEL_ID:
