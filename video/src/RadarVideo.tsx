@@ -7,7 +7,7 @@ import { Ending } from "./components/Ending";
 import { RadarData } from "./types";
 import durationsRaw from "./data/durations.json";
 
-interface Props {
+export interface RadarVideoProps {
   data: RadarData;
 }
 
@@ -23,7 +23,7 @@ function toFrames(seconds: number): number {
 
 const dur = durationsRaw as Record<string, number>;
 
-export const RadarVideo: React.FC<Props> = ({ data }) => {
+export const RadarVideo: React.FC<RadarVideoProps> = ({ data }) => {
   const { meta, daily_focus, top5_news, clash_or_sync, investor_reminder } = data;
 
   return (

@@ -37,6 +37,22 @@ function fmtPrice(price, decimals = 2) {
   });
 }
 
+function fmtStatValue(value, decimals = 2) {
+  if (value == null || isNaN(value)) return '—';
+  return Number(value).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+function formatMarketTime(ts) {
+  if (!ts) return '—';
+  const t = new Date(ts);
+  const hh = String(t.getHours()).padStart(2, '0');
+  const mm = String(t.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 // ── XSS ──────────────────────────────────────────────
 
 function esc(s) {
@@ -100,33 +116,133 @@ function renderList(articles) {
   root.innerHTML = html;
 }
 
+function syncStickyOffsets() {
+  const root = document.documentElement;
+  const ticker = document.querySelector('.ticker-wrap');
+  const header = document.querySelector('.site-header');
+  const tabNav = document.querySelector('.tab-nav');
+  if (!root || !ticker || !header || !tabNav) return;
+
+  const tickerH = Math.round(ticker.getBoundingClientRect().height || 40);
+  const headerH = Math.round(header.getBoundingClientRect().height || 52);
+  const tabNavH = Math.round(tabNav.getBoundingClientRect().height || 56);
+
+  root.style.setProperty('--ticker-h', `${tickerH}px`);
+  root.style.setProperty('--header-h', `${headerH}px`);
+  root.style.setProperty('--tab-nav-h', `${tabNavH}px`);
+}
+
 // ── Tab Switching ─────────────────────────────────────
 
 function initTabs() {
   const btns  = document.querySelectorAll('.tab-btn');
   const panes = document.querySelectorAll('.tab-pane');
 
+  const switchTo = (targetId) => {
+    document.body.classList.toggle('dashboard-tab-active', targetId === 'tab-dashboard');
+
+    btns.forEach(b => b.classList.remove('active'));
+    panes.forEach(p => p.classList.remove('active'));
+
+    const targetBtn = Array.from(btns).find(b => b.getAttribute('data-target') === targetId);
+    if (targetBtn) targetBtn.classList.add('active');
+
+    const targetPane = document.getElementById(targetId);
+    if (targetPane) targetPane.classList.add('active');
+
+    const resetScroll = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    resetScroll();
+    requestAnimationFrame(() => {
+      resetScroll();
+      syncStickyOffsets();
+      requestAnimationFrame(resetScroll);
+    });
+    syncStickyOffsets();
+
+    if (targetId === 'tab-dashboard' || targetId === 'tab-video') {
+      [120, 320, 700, 1200, 1800].forEach(ms => {
+        setTimeout(resetScroll, ms);
+      });
+
+      const lockUntil = Date.now() + 1800;
+      const onFocusIn = (e) => {
+        if (Date.now() > lockUntil) {
+          document.removeEventListener('focusin', onFocusIn, true);
+          return;
+        }
+        if (targetPane && targetPane.contains(e.target)) {
+          resetScroll();
+        }
+      };
+      document.addEventListener('focusin', onFocusIn, true);
+    }
+  };
+
   btns.forEach(btn => {
     btn.addEventListener('click', () => {
-      btns.forEach(b => b.classList.remove('active'));
-      panes.forEach(p => p.classList.remove('active'));
-
-      btn.classList.add('active');
-      const targetPane = document.getElementById(btn.getAttribute('data-target'));
-      if (targetPane) targetPane.classList.add('active');
-
-      const resetScroll = () => {
-        window.scrollTo(0, 0);
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-      };
-      resetScroll();
-      requestAnimationFrame(() => {
-        resetScroll();
-        requestAnimationFrame(resetScroll);
-      });
+      switchTo(btn.getAttribute('data-target'));
     });
   });
+
+}
+
+function initHeroRotator() {
+  const root = document.querySelector('.hero-rotator');
+  if (!root) return;
+
+  const slides = Array.from(root.querySelectorAll('.hero-slide'));
+  const dotsWrap = root.querySelector('#hero-dots');
+  const prevBtn = root.querySelector('#hero-prev');
+  const nextBtn = root.querySelector('#hero-next');
+  if (!slides.length || !dotsWrap || !prevBtn || !nextBtn) return;
+
+  let idx = 0;
+  let timer = null;
+  const intervalMs = 6200;
+
+  const dots = slides.map((_, i) => {
+    const b = document.createElement('button');
+    b.className = `hero-dot${i === 0 ? ' is-active' : ''}`;
+    b.type = 'button';
+    b.setAttribute('aria-label', `切換到第 ${i + 1} 張 Banner`);
+    b.addEventListener('click', () => {
+      goTo(i);
+      restartAuto();
+    });
+    dotsWrap.appendChild(b);
+    return b;
+  });
+
+  function goTo(next) {
+    idx = (next + slides.length) % slides.length;
+    slides.forEach((s, i) => s.classList.toggle('is-active', i === idx));
+    dots.forEach((d, i) => d.classList.toggle('is-active', i === idx));
+  }
+
+  function next() { goTo(idx + 1); }
+  function prev() { goTo(idx - 1); }
+  function startAuto() { if (!timer) timer = setInterval(next, intervalMs); }
+  function stopAuto() { if (timer) { clearInterval(timer); timer = null; } }
+  function restartAuto() { stopAuto(); startAuto(); }
+
+  nextBtn.addEventListener('click', () => { next(); restartAuto(); });
+  prevBtn.addEventListener('click', () => { prev(); restartAuto(); });
+
+  root.addEventListener('mouseenter', stopAuto);
+  root.addEventListener('mouseleave', startAuto);
+  root.addEventListener('focusin', stopAuto);
+  root.addEventListener('focusout', startAuto);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopAuto();
+    else startAuto();
+  });
+
+  startAuto();
 }
 
 // ── Market Data ───────────────────────────────────────
@@ -209,16 +325,76 @@ function renderTicker(items) {
   track.innerHTML = html + html;
 }
 
+function renderMarketOverview(items) {
+  const root = document.getElementById('market-overview-grid');
+  if (!root || !items?.length) return;
+
+  root.innerHTML = items.map(item => {
+    const hasPrice = item.price != null && !isNaN(item.price);
+    const up = Number(item.change) >= 0;
+    const sign = up ? '+' : '';
+    const cls = up ? 'market-up' : 'market-down';
+    const d = item.decimals ?? 2;
+    const status = item.fresh ? '即時/準即時' : '快取/待更新';
+    const statusCls = item.fresh ? 'fresh' : 'stale';
+
+    return `
+      <article class="market-overview-card ${hasPrice ? '' : 'is-empty'}">
+        <div class="market-card-topline">
+          <span class="market-card-group">${esc(item.group || item.market || '')}</span>
+          <span class="market-card-status ${statusCls}">${status}</span>
+        </div>
+        <h4 class="market-card-name">${esc(item.name)}</h4>
+        <div class="market-card-price">${hasPrice ? fmtPrice(item.price, d) : '—'}</div>
+        <div class="market-card-change ${hasPrice ? cls : ''}">
+          ${hasPrice ? `${sign}${Number(item.change).toFixed(d)} · ${sign}${Number(item.changePct).toFixed(2)}%` : '資料待補'}
+        </div>
+        <div class="market-card-date">資料日：${esc(item.date || '—')}</div>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderWatchlist(items) {
+  const body = document.getElementById('watchlist-body');
+  if (!body || !items?.length) return;
+
+  body.innerHTML = items.map(item => {
+    const hasPrice = item.price != null && !isNaN(item.price);
+    const up = Number(item.change) >= 0;
+    const sign = up ? '+' : '';
+    const cls = up ? 'market-up' : 'market-down';
+    const d = item.decimals ?? 2;
+    return `
+      <tr class="${item.fresh ? '' : 'is-stale'}">
+        <td>
+          <span class="watch-name">${esc(item.name)}</span>
+          <span class="watch-symbol">${esc(item.symbol || '')}</span>
+        </td>
+        <td><span class="watch-market">${esc(item.market || '—')}</span></td>
+        <td class="num">${hasPrice ? fmtPrice(item.price, d) : '—'}</td>
+        <td class="num ${hasPrice ? cls : ''}">
+          ${hasPrice ? `${sign}${Number(item.change).toFixed(d)} / ${sign}${Number(item.changePct).toFixed(2)}%` : '—'}
+        </td>
+        <td>
+          <span class="watch-date">${esc(item.date || '—')}</span>
+          ${item.fresh ? '' : '<span class="watch-cache">快取</span>'}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
 /**
  * 渲染總經指標卡片。
  */
 function renderMacro(macro) {
   const COLORS = {
-    vix:   '#ef4444',
-    us10y: '#eab308',
-    dxy:   '#2962ff',
-    gold:  '#f59e0b',
-    wti:   '#f97316',
+    usdtwd: '#60a5fa',
+    twse:   '#22c55e',
+    brent:  '#fb923c',
+    gold:   '#f59e0b',
+    copper: '#f97316',
   };
 
   document.querySelectorAll('.macro-data[data-key]').forEach(el => {
@@ -245,6 +421,25 @@ function renderMacro(macro) {
   });
 }
 
+function renderMacroStats(stats) {
+  if (!stats) return;
+
+  document.querySelectorAll('.macro-stat-item[data-stat-key]').forEach(el => {
+    const key = el.dataset.statKey;
+    const item = stats[key];
+    if (!item) return;
+
+    const valueEl = el.querySelector('.macro-stat-value');
+    const dateEl = el.querySelector('.macro-stat-date');
+    if (!valueEl || !dateEl) return;
+
+    const d = item.decimals ?? 2;
+    const unit = item.unit ? ` ${item.unit}` : '';
+    valueEl.textContent = `${fmtStatValue(item.value, d)}${unit}`;
+    dateEl.textContent = `更新：${item.date || '—'}${item.fresh === false ? '（快取）' : ''}`;
+  });
+}
+
 /**
  * 載入市場數據，渲染 ticker 和 macro 卡片。
  * 每 5 分鐘自動刷新。
@@ -255,16 +450,20 @@ async function loadMarketData() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
+    if (data.overview?.length) renderMarketOverview(data.overview);
+    if (data.watchlist?.length) renderWatchlist(data.watchlist);
     if (data.ticker?.length) renderTicker(data.ticker);
     if (data.macro)          renderMacro(data.macro);
+    if (data.macroStats)     renderMacroStats(data.macroStats);
 
     // 更新時間標籤
     const noteEl = document.getElementById('macro-update-time');
     if (noteEl && data.ts) {
-      const t = new Date(data.ts);
-      const hh = String(t.getHours()).padStart(2, '0');
-      const mm = String(t.getMinutes()).padStart(2, '0');
-      noteEl.textContent = `資料來源：Yahoo Finance · 更新 ${hh}:${mm}`;
+      noteEl.textContent = `資料來源：Stooq + 官方機構 · 更新 ${formatMarketTime(data.ts)}${data.stale ? ' · 使用快取' : ''}`;
+    }
+    const freshEl = document.getElementById('market-freshness');
+    if (freshEl && data.ts) {
+      freshEl.textContent = `資料來源：Stooq + TradingView · 更新 ${formatMarketTime(data.ts)}${data.stale ? ' · 使用快取' : ''}`;
     }
   } catch (err) {
     console.warn('[market-data]', err.message);
@@ -273,29 +472,113 @@ async function loadMarketData() {
 
 // ── Video Hub — 動態更新影音專區 ──────────────────────
 
+function escVid(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatVideoDate(dateStr) {
+  if (!dateStr) return '';
+  const [, m, d] = dateStr.split('-');
+  return `${parseInt(m)} 月 ${parseInt(d)} 日`;
+}
+
 async function initVideos() {
-  // 嘗試從 latest.json 讀取最新 YouTube video_id，更新嵌入式播放器
-  const iframe = document.querySelector('#tab-video .yt-embed-container iframe');
-  if (!iframe) return;
+  const featuredContainer = document.getElementById('video-featured-container');
+  const gridContainer     = document.getElementById('video-grid-container');
+  if (!featuredContainer) return;
 
   try {
-    const res = await fetch('/data/latest.json');
-    if (!res.ok) return;
-    const data = await res.json();
+    const res = await fetch('/data/videos.json');
+    if (!res.ok) throw new Error('no videos.json');
+    const { videos } = await res.json();
+    if (!videos || !videos.length) return;
 
-    if (data.youtube_video_id) {
-      const vid = encodeURIComponent(data.youtube_video_id);
-      iframe.src = `https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1`;
+    // ── 主推影片（最新，嵌入播放器）────────────────────
+    const latest = videos[0];
+    const vid    = encodeURIComponent(latest.video_id);
+    featuredContainer.innerHTML = `
+      <div class="yt-embed-container">
+        <iframe
+          src="https://www.youtube.com/embed/${vid}?rel=0&modestbranding=1&autoplay=0"
+          title="${escVid(latest.title)}"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+        ></iframe>
+      </div>
+      <div class="yt-featured-meta">
+        <span class="yt-featured-date">${escVid(formatVideoDate(latest.date))}</span>
+        <h4 class="yt-featured-title">${escVid(latest.title)}</h4>
+        <a class="yt-featured-link" href="https://www.youtube.com/watch?v=${vid}" target="_blank" rel="noopener noreferrer">在 YouTube 觀看 ↗</a>
+      </div>`;
 
-      // 更新說明文字以顯示最新影片日期
-      const descEl = document.querySelector('#tab-video .yt-channel-desc');
-      if (descEl && data.meta?.date) {
-        descEl.textContent =
-          `最新影片：${data.meta.date}　·　每日 AI 自動生成財經解析短影音 · 台股 & 美股動態觀察 · 訂閱免費收看`;
-      }
+    // 更新副標題
+    const descEl = document.querySelector('#tab-video .yt-channel-desc');
+    if (descEl) {
+      descEl.textContent = `最新影片：${latest.date}　·　每日 AI 自動生成財經解析短影音`;
+    }
+
+    // ── 過往影片 grid（第 2 筆以後）─────────────────────
+    if (videos.length > 1) {
+      const items = videos.slice(1).map(v => {
+        const vid2 = encodeURIComponent(v.video_id);
+        return `
+          <a class="yt-past-item" href="https://www.youtube.com/watch?v=${vid2}" target="_blank" rel="noopener noreferrer">
+            <div class="yt-past-thumb">
+              <img src="https://img.youtube.com/vi/${vid2}/mqdefault.jpg" alt="${escVid(v.title)}" loading="lazy">
+              <div class="yt-past-play">▶</div>
+            </div>
+            <div class="yt-past-info">
+              <span class="yt-past-date">${escVid(formatVideoDate(v.date))}</span>
+              <div class="yt-past-title">${escVid(v.title)}</div>
+            </div>
+          </a>`;
+      }).join('');
+
+      gridContainer.innerHTML = `
+        <h4 class="yt-past-heading">過往影片</h4>
+        <div class="yt-past-grid">${items}</div>`;
     }
   } catch {
-    // 靜默 fallback — 維持 HTML 中的頻道播放清單嵌入
+    // fallback — 維持 HTML 中的頻道播放清單嵌入
+  }
+}
+
+// ── AI 觀點驗證 Widget ────────────────────────────────
+
+async function loadAccuracy() {
+  try {
+    const res = await fetch('/data/accuracy.json');
+    if (!res.ok) return;
+    const d = await res.json();
+
+    const pctEl = document.getElementById('acc-pct');
+    const barEl = document.getElementById('acc-bar');
+    const countEl = document.getElementById('acc-count');
+    const updEl = document.getElementById('acc-updated');
+    const bdEl = document.getElementById('acc-breakdown');
+    if (!pctEl) return;
+
+    pctEl.textContent = d.total > 0 ? d.accuracy_pct : '—';
+    barEl.style.width = d.total > 0 ? `${d.accuracy_pct}%` : '0%';
+    countEl.textContent = d.total > 0 ? `累計 ${d.total} 筆` : '資料累積中';
+    if (d.last_updated) {
+      const [, m, dd] = d.last_updated.split('-');
+      updEl.textContent = `更新 ${m}/${dd}`;
+    }
+
+    const rows = [];
+    if (d.bullish_total > 0) {
+      rows.push(`<div class="acc-row"><span class="acc-badge bull">看多</span><span class="acc-val">${d.bullish_win_rate}%</span> 勝率（${d.bullish_total} 筆）</div>`);
+    }
+    if (d.bearish_total > 0) {
+      rows.push(`<div class="acc-row"><span class="acc-badge bear">看空</span><span class="acc-val">${d.bearish_win_rate}%</span> 勝率（${d.bearish_total} 筆）</div>`);
+    }
+    if (rows.length === 0) {
+      rows.push(`<div style="color:var(--text-3);font-size:.75rem">樣本累積中，敬請期待</div>`);
+    }
+    bdEl.innerHTML = rows.join('');
+  } catch {
+    // 靜默失敗，不影響主頁面
   }
 }
 
@@ -303,7 +586,15 @@ async function initVideos() {
 
 async function init() {
   document.getElementById('header-date').textContent = todayTW();
+  syncStickyOffsets();
+  window.addEventListener('resize', syncStickyOffsets);
+  window.addEventListener('orientationchange', syncStickyOffsets);
+  requestAnimationFrame(syncStickyOffsets);
+  setTimeout(syncStickyOffsets, 300);
+  setTimeout(syncStickyOffsets, 1200);
+
   initTabs();
+  initHeroRotator();
   initVideos();
 
   // 載入文章列表
@@ -315,6 +606,9 @@ async function init() {
     document.getElementById('article-list').innerHTML =
       `<p style="color:var(--text-2);font-size:.88rem;padding:1rem 0">資料載入失敗，請稍後再試。</p>`;
   }
+
+  // 載入 AI 觀點驗證
+  loadAccuracy();
 
   // 載入市場數據（不阻塞）
   loadMarketData();

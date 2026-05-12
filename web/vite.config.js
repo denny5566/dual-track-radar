@@ -9,6 +9,24 @@ function devApiPlugin() {
   return {
     name: 'dev-api',
     configureServer(server) {
+      // market data API for local dev
+      server.middlewares.use('/api/market-data', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+        try {
+          const mod = await import('./api/market-data.js');
+          await mod.default(req, res);
+        } catch (err) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+
       server.middlewares.use('/api/chat', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;

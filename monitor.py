@@ -168,6 +168,17 @@ def _download_audio(video_url: str, out_path: Path, channel_name: str) -> bool:
                 ydl.download([video_url])
         except Exception as exc:
             log.error("[%s] %s 下載失敗：%s", channel_name, attempt_name, exc)
+            # PostProcessingError：yt-dlp postprocessor 在 Windows 常拋例外
+            # 但原始音訊可能已下載成功，嘗試手動轉換
+            if out_path.exists():
+                log.info("[%s] 例外後發現 mp3 已存在，視為成功（%s）", channel_name, attempt_name)
+                return True
+            if raw_path.exists():
+                log.warning("[%s] 後處理拋出例外，嘗試手動轉換（%s）...", channel_name, attempt_name)
+                if _ffmpeg_convert(raw_path, out_path):
+                    log.info("[%s] 手動轉換成功：%s（%s）", channel_name, out_path, attempt_name)
+                    return True
+                log.error("[%s] 手動轉換也失敗（%s）", channel_name, attempt_name)
         else:
             if out_path.exists():
                 log.info("[%s] 音檔已儲存：%s（%s）", channel_name, out_path, attempt_name)

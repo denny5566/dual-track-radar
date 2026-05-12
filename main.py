@@ -39,6 +39,7 @@ from config import (
     BASE_DIR,
     CARDS_DIR,
     CLAUDE_MODEL,
+    AUTO_PUBLISH_YOUTUBE_PUBLIC,
     EMAIL_FROM,
     EMAIL_RECIPIENTS,
     ENV,
@@ -329,7 +330,11 @@ def step_send_email(data: dict, banner_path: Path, pdf_path: Path) -> None:
 
 
 # ── Step 5.5：影片渲染（Remotion）────────────────────────────────────────────
-def step_render_video(data: dict) -> dict[str, Path | None]:
+def step_render_video(
+    data: dict,
+    render_horizontal: bool = True,
+    render_vertical: bool = True,
+) -> dict[str, Path | None]:
     """
     呼叫 Remotion CLI 渲染影片。
     回傳 {"horizontal": Path | None, "vertical": Path | None}
@@ -338,7 +343,15 @@ def step_render_video(data: dict) -> dict[str, Path | None]:
     """
     import subprocess
 
-    log.info("=== Step 5.5：Remotion 影片渲染 ===")
+    log.info(
+        "=== Step 5.5：Remotion 影片渲染（horizontal=%s, vertical=%s）===",
+        render_horizontal,
+        render_vertical,
+    )
+
+    if not render_horizontal and not render_vertical:
+        log.warning("未指定任何影片格式，跳過 Remotion 渲染")
+        return {"horizontal": None, "vertical": None}
 
     # 渲染前先更新 sample.json + 旁白音檔 + 場景圖片
     step_generate_video_assets(data)
@@ -349,10 +362,11 @@ def step_render_video(data: dict) -> dict[str, Path | None]:
 
     results: dict[str, Path | None] = {"horizontal": None, "vertical": None}
 
-    tasks = [
-        ("horizontal", "RadarVideoHorizontal", out_dir / "video_horizontal.mp4"),
-        ("vertical",   "RadarVideo",           out_dir / "video_vertical.mp4"),
-    ]
+    tasks = []
+    if render_horizontal:
+        tasks.append(("horizontal", "RadarVideoHorizontal", out_dir / "video_horizontal.mp4"))
+    if render_vertical:
+        tasks.append(("vertical", "RadarVideo", out_dir / "video_vertical.mp4"))
 
     for key, composition, out_file in tasks:
         log.info("[Remotion] 渲染 %s (%s)...", key, composition)
@@ -407,6 +421,39 @@ def step_publish_youtube(video_path: Path, data: dict) -> str | None:
     video_id = upload_to_youtube(video_path, title=title, description=description)
     if video_id:
         log.info("[OK] YouTube 影片：https://www.youtube.com/watch?v=%s", video_id)
+    return video_id
+
+
+def step_auto_publish_youtube_public(data: dict) -> str | None:
+    """
+    Cron 專用：渲染橫式影片並直接公開發布到 YouTube。
+    預設不會執行，需由 AUTO_PUBLISH_YOUTUBE_PUBLIC 或 CLI flag 明確啟用。
+    """
+    log.info("=== Step 7.5：自動渲染並公開發布 YouTube 影片 ===")
+
+    date_str = data.get("meta", {}).get("date", "")
+    if data.get("youtube_video_id"):
+        log.warning("[YouTube] data 已有 youtube_video_id=%s，跳過自動發布以避免重複上傳", data["youtube_video_id"])
+        return data["youtube_video_id"]
+
+    video_paths = step_render_video(
+        data,
+        render_horizontal=True,
+        render_vertical=False,
+    )
+    h_path = video_paths.get("horizontal")
+    if not h_path:
+        log.error("[YouTube] 自動發布中止：橫式影片渲染失敗")
+        return None
+
+    video_id = step_publish_youtube(h_path, data)
+    if not video_id:
+        log.error("[YouTube] 自動公開發布失敗，請查看 video_publish_jobs 發布紀錄")
+        return None
+
+    data["youtube_video_id"] = video_id
+    step_save_db(data)
+    log.info("[YouTube] 自動公開發布完成（date=%s）：https://www.youtube.com/watch?v=%s", date_str, video_id)
     return video_id
 
 
@@ -541,6 +588,7 @@ def main() -> None:
     parser.add_argument("--skip-audio",       action="store_true", help="跳過旁白音檔生成")
     parser.add_argument("--no-email",         action="store_true", help="不寄送 Email")
     parser.add_argument("--no-cleanup",       action="store_true", help="保留暫存檔案（debug）")
+    parser.add_argument("--auto-publish-youtube-public", action="store_true", help="流程最後自動渲染橫式影片並公開發布 YouTube")
     parser.add_argument("--video-date",       help="指定分析日期（YYYY-MM-DD），供 skip-download / 指定舊片測試使用")
     args = parser.parse_args()
 
@@ -609,9 +657,23 @@ def main() -> None:
     if not args.no_email and banner_path and pdf_path:
         step_send_email(data, banner_path, pdf_path)
 
+    auto_publish_youtube = args.auto_publish_youtube_public or AUTO_PUBLISH_YOUTUBE_PUBLIC
+    if auto_publish_youtube:
+        yt_id = step_auto_publish_youtube_public(data)
+        if not yt_id:
+            log.error("管線中止：YouTube 自動公開發布失敗")
+            sys.exit(1)
+
     # Step 7（無論是否寄信，都執行清理）
     if not args.no_cleanup:
         step_cleanup(banner_path, pdf_path)
+
+    # Step 8：更新 AI 觀點驗證正確率
+    try:
+        import subprocess
+        subprocess.run([sys.executable, "tools/backtest.py"], check=False)
+    except Exception as e:
+        log.warning(f"[WARN] backtest 更新失敗（不影響主流程）: {e}")
 
     log.info("=== 管線完成 ===")
 

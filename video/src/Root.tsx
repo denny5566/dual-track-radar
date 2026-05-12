@@ -1,6 +1,6 @@
 import React from "react";
 import { Composition } from "remotion";
-import { RadarVideo } from "./RadarVideo";
+import { RadarVideo, type RadarVideoProps } from "./RadarVideo";
 import sampleData from "./data/sample.json";
 import durationsRaw from "./data/durations.json";
 
@@ -24,27 +24,31 @@ const totalFrames =
   toFrames(dur.ending ?? 6);
 
 export const RemotionRoot: React.FC = () => {
+  const defaultProps: RadarVideoProps = { data: sampleData as RadarVideoProps["data"] };
+  const looseRadarVideo = RadarVideo as unknown as React.ComponentType<Record<string, unknown>>;
+
   return (
     <>
       {/* 直式（IG / TikTok）*/}
       <Composition
         id="RadarVideo"
-        component={RadarVideo}
+        component={looseRadarVideo}
         durationInFrames={totalFrames}
         fps={FPS}
         width={1080}
         height={1920}
-        defaultProps={{ data: sampleData }}
+        defaultProps={defaultProps as unknown as Record<string, unknown>}
       />
+
       {/* 橫式（YouTube）*/}
       <Composition
         id="RadarVideoHorizontal"
-        component={RadarVideo}
+        component={looseRadarVideo}
         durationInFrames={totalFrames}
         fps={FPS}
         width={1920}
         height={1080}
-        defaultProps={{ data: sampleData }}
+        defaultProps={defaultProps as unknown as Record<string, unknown>}
       />
     </>
   );

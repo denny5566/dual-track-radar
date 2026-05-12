@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 VOICE      = "zh-TW-YunJheNeural"   # 男聲（台灣繁中）
+FALLBACK_VOICE = "zh-TW-HsiaoChenNeural"
 AUDIO_DIR  = Path("video/public/audio")
 DURATIONS_PATH = Path("video/src/data/durations.json")
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
@@ -42,11 +43,25 @@ def get_duration(path: Path) -> float:
 
 
 async def speak(text: str, output_path: Path) -> None:
-    """合成單段語音並儲存。"""
-    log.info("合成：%s", output_path.name)
-    communicate = edge_tts.Communicate(text, VOICE)
-    await communicate.save(str(output_path))
-    log.info("已儲存：%s（%.1f 秒）", output_path, get_duration(output_path))
+    """合成單段語音並儲存（含重試，降低 Edge TTS 偶發失敗）。"""
+    voices = [VOICE, FALLBACK_VOICE]
+    last_error: Exception | None = None
+    for attempt in range(1, 4):
+        voice = voices[(attempt - 1) % len(voices)]
+        try:
+            log.info("合成：%s（voice=%s, attempt=%d/3）", output_path.name, voice, attempt)
+            communicate = edge_tts.Communicate(text, voice)
+            await communicate.save(str(output_path))
+            # Edge TTS 偶發會產出空檔，這裡補檢查
+            if not output_path.exists() or output_path.stat().st_size < 1024:
+                raise RuntimeError("No audio was received. Please verify that your parameters are correct.")
+            log.info("已儲存：%s（%.1f 秒）", output_path, get_duration(output_path))
+            return
+        except Exception as e:
+            last_error = e
+            log.warning("語音合成失敗：%s（attempt=%d/3）", e, attempt)
+            await asyncio.sleep(1.2 * attempt)
+    raise RuntimeError(f"語音合成最終失敗：{last_error}")
 
 
 async def generate_all(data: dict) -> None:

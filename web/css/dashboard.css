@@ -520,7 +520,7 @@
 @media (max-width: 640px) {
   .recent-videos-grid { grid-template-columns: 1fr; }
 }
-.video-card {
+.recent-videos-grid .video-card {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -529,8 +529,16 @@
   text-decoration: none;
   color: inherit;
   display: block;
+  position: relative;
+  top: auto;
+  right: auto;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  animation: none;
+  transform: none;
 }
-.video-card:hover { border-color: var(--border-md); }
+.recent-videos-grid .video-card:hover { border-color: var(--border-md); }
 .video-thumb-wrap {
   position: relative;
   width: 100%;

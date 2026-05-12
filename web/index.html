@@ -65,10 +65,54 @@
 
     <!-- TAB 1: News / Daily Intelligence -->
     <section id="tab-news" class="tab-pane active fade-in">
+      <section class="hero-banner-block" aria-label="每日財經解析 Banner">
+        <div class="hero-shell">
+          <div class="hero-track">
+            <article class="hero-slide is-active" data-slide="0" aria-label="每日財經解析">
+              <div class="hero-bg bg-daily">
+                <div class="data-streams"></div>
+                <div class="scan-ring"></div>
+                <svg class="sparkline-overlay" viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M0,220 C80,190 160,230 240,200 C320,170 400,210 480,175 C560,145 640,195 720,155 C800,125 880,155 1000,120"></path>
+                </svg>
+              </div>
+              <div class="hero-content">
+                <span class="hero-kicker">AI Finance Intelligence</span>
+                <h2>每日財經解析</h2>
+                <p>自動化監控、多軌分析、客觀中立的市場守望者</p>
+                <div class="hero-meta">
+                  <span class="meta-chip">Data Pipeline</span>
+                  <span class="meta-chip">Sentiment</span>
+                  <span class="meta-chip">Risk Radar</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
       <div class="news-inner">
-        <section class="home-hero">
-          <h1 class="home-title">每日 AI 財經解析</h1>
-          <p class="home-sub">自動化監控、多軌分析、客觀中立的市場守望者。</p>
+        <!-- AI 觀點驗證 Widget -->
+        <section class="accuracy-widget" id="accuracy-widget" aria-label="AI 觀點驗證">
+          <div class="accuracy-inner">
+            <div class="accuracy-header">
+              <span class="accuracy-icon">◎</span>
+              <span class="accuracy-label">AI 觀點驗證</span>
+              <span class="accuracy-updated" id="acc-updated"></span>
+            </div>
+            <div class="accuracy-body">
+              <div class="accuracy-score-col">
+                <div class="accuracy-score-row">
+                  <span class="accuracy-pct" id="acc-pct">—</span>
+                  <span class="accuracy-unit">%</span>
+                </div>
+                <div class="accuracy-bar-wrap">
+                  <div class="accuracy-bar" id="acc-bar" style="width:0%"></div>
+                </div>
+                <div class="accuracy-count" id="acc-count"></div>
+              </div>
+              <div class="accuracy-breakdown" id="acc-breakdown"></div>
+            </div>
+          </div>
         </section>
         <div class="divider"></div>
         <section class="article-list-section" aria-label="文章列表">
@@ -85,12 +129,76 @@
 
     <!-- TAB 2: Market Dashboard -->
     <section id="tab-dashboard" class="tab-pane fade-in">
-      <div class="dashboard-header">
-        <h2>市場全景</h2>
-        <p>掌握全球股市脈動與總經指標即時動態</p>
-      </div>
+      <section class="hero-banner-block" aria-label="股市全景 Banner">
+        <div class="hero-shell">
+          <div class="hero-track">
+            <article class="hero-slide is-active" aria-label="股市全景">
+              <div class="hero-bg bg-panorama">
+                <div class="world-grid"></div>
+                <div class="world-link l1"></div>
+                <div class="world-link l2"></div>
+                <div class="world-link l3"></div>
+                <span class="world-node n1"></span>
+                <span class="world-node n2"></span>
+                <span class="world-node n3"></span>
+                <span class="world-node n4"></span>
+              </div>
+              <div class="hero-content">
+                <span class="hero-kicker">Global Market Radar</span>
+                <h2>股市全景</h2>
+                <div class="hero-meta">
+                  <span class="meta-chip">Macro</span>
+                  <span class="meta-chip">Cross-Market</span>
+                  <span class="meta-chip">Realtime</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
 
-      <!-- ① 重要經濟行事曆 -->
+      <!-- ① 市場風向總覽 -->
+      <section class="market-overview-section" aria-label="市場風向總覽">
+        <div class="market-section-head">
+          <div>
+            <h3 class="market-section-title">市場風向總覽</h3>
+            <p class="market-section-sub">台股為主，美股指數與跨市場指標輔助判斷。</p>
+          </div>
+          <span class="market-freshness" id="market-freshness">資料來源：Stooq + TradingView · 載入中…</span>
+        </div>
+        <div class="market-overview-grid" id="market-overview-grid">
+          <div class="market-card-skeleton">市場總覽載入中…</div>
+        </div>
+        <p class="market-disclaimer">本頁資料僅供市場觀察與內容參考，可能延遲或來自快取，不構成投資建議。</p>
+      </section>
+
+      <!-- ② 固定觀察清單 -->
+      <section class="watchlist-section" aria-label="固定觀察清單">
+        <div class="market-section-head compact">
+          <div>
+            <h3 class="market-section-title">固定觀察清單</h3>
+            <p class="market-section-sub">第一版固定維護，不做完整個股研究。</p>
+          </div>
+        </div>
+        <div class="watchlist-table-wrap">
+          <table class="watchlist-table">
+            <thead>
+              <tr>
+                <th>標的</th>
+                <th>市場</th>
+                <th>價格</th>
+                <th>漲跌</th>
+                <th>資料日</th>
+              </tr>
+            </thead>
+            <tbody id="watchlist-body">
+              <tr><td colspan="5">觀察清單載入中…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ③ 重要經濟行事曆 -->
       <div class="macro-calendar-wrap" style="margin-bottom:1.5rem">
         <div class="macro-calendar-header">
           <span class="macro-label">重要經濟數據行事曆</span>
@@ -112,104 +220,164 @@
         </div>
       </div>
 
-      <!-- ② 總經指標雷達 -->
+      <!-- ④ 總經指標雷達（美國 / 台灣） -->
       <div class="macro-section">
         <div class="macro-header">
           <h3 class="macro-title">總經指標雷達</h3>
-          <span class="macro-updated-note" id="macro-update-time">資料來源：Yahoo Finance · 載入中…</span>
+          <span class="macro-updated-note" id="macro-update-time">資料來源：Stooq + 官方機構 · 載入中…</span>
         </div>
 
-        <div class="macro-grid">
-
-          <!-- VIX -->
-          <div class="macro-card">
-            <div class="macro-card-top">
-              <span class="macro-label">VIX 恐慌指數</span>
-              <span class="macro-tooltip-icon" data-tip="VIX（CBOE 波動率指數）：衡量未來 30 天 S&P 500 的預期波動率。數值 > 30 代表市場恐慌；< 15 代表市場平靜。股市大跌時通常急升。">ⓘ</span>
+        <div class="macro-subsection macro-subsection-us">
+          <div class="macro-subtitle">美國總經指標</div>
+          <div class="macro-grid">
+            <div class="macro-card">
+              <div class="macro-card-top">
+                <span class="macro-label">VIX 恐慌指數</span>
+                <span class="macro-tooltip-icon" data-tip="VIX（CBOE 波動率指數）：衡量未來 30 天 S&P 500 預期波動。常見 > 30 為市場緊張。">ⓘ</span>
+              </div>
+              <div class="macro-link-inline">
+                <div class="macro-inline-note">此指標改為外部連結（免費來源不穩定）</div>
+                <a href="https://www.cboe.com/tradable_products/vix/" target="_blank" rel="noopener noreferrer" class="macro-inline-link">查看 CBOE VIX 官方頁 ↗</a>
+              </div>
             </div>
-            <div class="macro-data" data-key="vix" data-color="#ef4444">
-              <div class="macro-price-num">—</div>
-              <div class="macro-price-chg">—</div>
-              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
+
+            <div class="macro-card">
+              <div class="macro-card-top">
+                <span class="macro-label">美國 2Y 殖利率</span>
+                <span class="macro-tooltip-icon" data-tip="短天期利率，對聯準會升降息預期最敏感。">ⓘ</span>
+              </div>
+              <div class="macro-link-inline">
+                <div class="macro-inline-note">此指標改為外部連結（免費來源不穩定）</div>
+                <a href="https://www.ustreasuryyieldcurve.com/" target="_blank" rel="noopener noreferrer" class="macro-inline-link">查看美債殖利率曲線 ↗</a>
+              </div>
+            </div>
+
+            <div class="macro-card">
+              <div class="macro-card-top">
+                <span class="macro-label">美國 10Y 殖利率</span>
+                <span class="macro-tooltip-icon" data-tip="長天期利率基準，反映成長與通膨預期，亦影響股市估值。">ⓘ</span>
+              </div>
+              <div class="macro-link-inline">
+                <div class="macro-inline-note">此指標改為外部連結（免費來源不穩定）</div>
+                <a href="https://www.ustreasuryyieldcurve.com/" target="_blank" rel="noopener noreferrer" class="macro-inline-link">查看美債殖利率曲線 ↗</a>
+              </div>
+            </div>
+
+            <div class="macro-card">
+              <div class="macro-card-top">
+                <span class="macro-label">美元指數 DXY</span>
+                <span class="macro-tooltip-icon" data-tip="衡量美元強弱。美元走強常壓抑風險資產與大宗商品。">ⓘ</span>
+              </div>
+              <div class="macro-link-inline">
+                <div class="macro-inline-note">此指標改為外部連結（免費來源不穩定）</div>
+                <a href="https://www.tradingview.com/symbols/TVC-DXY/" target="_blank" rel="noopener noreferrer" class="macro-inline-link">查看 DXY 即時圖 ↗</a>
+              </div>
+            </div>
+
+            <div class="macro-card">
+              <div class="macro-card-top">
+                <span class="macro-label">銅價</span>
+                <span class="macro-tooltip-icon" data-tip="工業金屬景氣風向球，可輔助觀察製造業週期。">ⓘ</span>
+              </div>
+              <div class="macro-data" data-key="copper" data-color="#f97316">
+                <div class="macro-price-num">—</div>
+                <div class="macro-price-chg">—</div>
+                <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
+              </div>
             </div>
           </div>
 
-          <!-- US 10Y -->
-          <div class="macro-card">
-            <div class="macro-card-top">
-              <span class="macro-label">美國 10Y 殖利率</span>
-              <span class="macro-tooltip-icon" data-tip="美國 10 年期公債殖利率：長期利率基準。殖利率上升 → 資金成本增加，股市承壓；下降 → 有利成長股。聯準會升降息的重要風向球。">ⓘ</span>
-            </div>
-            <div class="macro-data" data-key="us10y" data-color="#eab308">
-              <div class="macro-price-num">—</div>
-              <div class="macro-price-chg">—</div>
-              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
-            </div>
-          </div>
-
-          <!-- DXY -->
-          <div class="macro-card">
-            <div class="macro-card-top">
-              <span class="macro-label">DXY 美元指數</span>
-              <span class="macro-tooltip-icon" data-tip="美元指數（DXY）：衡量美元對一籃子主要貨幣的強弱。指數上升 → 美元強勢，通常對新興市場與商品價格形成壓力；下降 → 有利台股外資回流。">ⓘ</span>
-            </div>
-            <div class="macro-data" data-key="dxy" data-color="#2962ff">
-              <div class="macro-price-num">—</div>
-              <div class="macro-price-chg">—</div>
-              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
-            </div>
-          </div>
-
-          <!-- 黃金 -->
-          <div class="macro-card">
-            <div class="macro-card-top">
-              <span class="macro-label">黃金現貨</span>
-              <span class="macro-tooltip-icon" data-tip="黃金（GC Futures）：避險資產首選。通脹上升、地緣政治風險、美元走弱時傾向上漲。金價與美債實際殖利率通常呈負相關。">ⓘ</span>
-            </div>
-            <div class="macro-data" data-key="gold" data-color="#f59e0b">
-              <div class="macro-price-num">—</div>
-              <div class="macro-price-chg">—</div>
-              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
+          <div class="macro-grid macro-grid-links">
+            <div class="macro-card macro-link-group">
+              <div class="macro-label" style="margin-bottom:0.75rem">美國政策與景氣追蹤</div>
+              <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
+                FedWatch 升降息機率
+                <span class="macro-ext-desc">觀察下一次 FOMC 會議市場定價的升息/降息機率</span>
+              </a>
+              <a href="https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
+                FOMC 利率決策時程
+                <span class="macro-ext-desc">聯準會會議日程與政策聲明，追蹤升降息基準</span>
+              </a>
+              <a href="https://www.federalreserve.gov/monetarypolicy/beige-book-default.htm" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
+                FOMC 褐皮書（Beige Book）
+                <span class="macro-ext-desc">12 個聯準區域經濟現況摘要，反映通膨與景氣溫度</span>
+              </a>
+              <a href="https://fred.stlouisfed.org/series/ICSA" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
+                每週初領失業金人數
+                <span class="macro-ext-desc">高頻就業指標，通常每週更新，常引發利率預期波動</span>
+              </a>
+              <a href="https://www.ismworld.org/supply-management-news-and-reports/reports/ism-report-on-business/" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
+                ISM 製造業指數
+                <span class="macro-ext-desc">美國製造業景氣擴張/收縮分界，常作為景氣循環領先指標</span>
+              </a>
+              <a href="https://fred.stlouisfed.org/series/MOVE" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
+                MOVE 利率波動指數
+                <span class="macro-ext-desc">衡量美債市場波動，常被視為「債市 VIX」</span>
+              </a>
             </div>
           </div>
 
-          <!-- WTI 原油 -->
-          <div class="macro-card">
-            <div class="macro-card-top">
-              <span class="macro-label">WTI 原油</span>
-              <span class="macro-tooltip-icon" data-tip="WTI 原油（CL Futures）：全球主要原油基準價。油價上漲推升通膨，影響聯準會利率決策。對航運、石化、能源類股有直接影響。">ⓘ</span>
+          <details class="macro-fold" open>
+            <summary>美國月度 / 週度指標（無當月時自動回補最近一期）</summary>
+            <div class="macro-stat-list">
+              <div class="macro-stat-item" data-stat-key="us_fedfunds">
+                <span class="macro-stat-name">聯邦基金利率（有效）</span>
+                <span class="macro-stat-value">—</span>
+                <span class="macro-stat-date">更新：—</span>
+              </div>
+              <div class="macro-stat-item" data-stat-key="us_initial_claims">
+                <span class="macro-stat-name">每週初領失業金人數</span>
+                <span class="macro-stat-value">—</span>
+                <span class="macro-stat-date">更新：—</span>
+              </div>
             </div>
-            <div class="macro-data" data-key="wti" data-color="#f97316">
-              <div class="macro-price-num">—</div>
-              <div class="macro-price-chg">—</div>
-              <svg class="macro-spark" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
+          </details>
+        </div>
+
+        <div class="macro-subsection macro-subsection-tw">
+          <div class="macro-subtitle">台灣總經指標</div>
+          <div class="macro-grid macro-grid-links">
+            <div class="macro-card macro-link-group">
+              <div class="macro-label" style="margin-bottom:0.75rem">台灣政策與景氣追蹤</div>
+              <a href="https://www.cbc.gov.tw/" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
+                央行升降息（理監事會）
+                <span class="macro-ext-desc">台灣央行政策利率與理監事會決議，追蹤升降息方向</span>
+              </a>
+              <a href="https://index.ndc.gov.tw/n/" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
+                台灣景氣燈號
+                <span class="macro-ext-desc">國發會每月景氣對策信號，快速掌握景氣循環位階</span>
+              </a>
+              <a href="https://www.tpex.org.tw/web/bond/benchmark/government_bond/analysis.php?l=zh-tw" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
+                台灣公債殖利率曲線
+                <span class="macro-ext-desc">觀察台債各天期殖利率結構，輔助判讀資金成本與景氣預期</span>
+              </a>
             </div>
           </div>
 
-          <!-- 外部連結卡 -->
-          <div class="macro-card macro-link-group">
-            <div class="macro-label" style="margin-bottom:0.75rem">外部指標連結</div>
-            <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-              CNN 恐懼貪婪指數
-              <span class="macro-ext-desc">市場情緒綜合評分（0 極恐=買點 / 100 極貪=注意）</span>
-            </a>
-            <a href="https://polymarket.com/" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              Polymarket 預測市場
-              <span class="macro-ext-desc">去中心化預測市場，反映市場對政經事件的真實機率判斷</span>
-            </a>
-            <a href="https://www.bls.gov/news.release/empsit.nr0.htm" target="_blank" rel="noopener noreferrer" class="macro-ext-link">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              NFP 非農就業 (BLS)
-              <span class="macro-ext-desc">每月第一個週五發布；美國就業市場最重要指標，影響Fed決策</span>
-            </a>
-          </div>
-
+          <details class="macro-fold" open>
+            <summary>台灣月度 / 政策指標（無當月時自動回補最近一期）</summary>
+            <div class="macro-stat-list">
+              <div class="macro-stat-item" data-stat-key="tw_rediscount_rate">
+                <span class="macro-stat-name">央行重貼現率</span>
+                <span class="macro-stat-value">—</span>
+                <span class="macro-stat-date">更新：—</span>
+              </div>
+              <div class="macro-stat-item" data-stat-key="tw_m2_yoy">
+                <span class="macro-stat-name">M2 年增率</span>
+                <span class="macro-stat-value">—</span>
+                <span class="macro-stat-date">更新：—</span>
+              </div>
+              <div class="macro-stat-item" data-stat-key="tw_overnight_rate">
+                <span class="macro-stat-name">金融業隔夜拆款利率</span>
+                <span class="macro-stat-value">—</span>
+                <span class="macro-stat-date">更新：—</span>
+              </div>
+            </div>
+          </details>
         </div>
       </div>
 
-      <!-- ③ 美股 & 台股走勢圖 -->
+      <!-- ⑤ 美股 & 台股走勢圖 -->
       <div class="tv-widget-label" style="margin-top:2rem">美股 &amp; 台股走勢圖</div>
       <div class="tv-widget-box chart-main">
         <div class="tradingview-widget-container" style="height:100%;width:100%">
@@ -232,10 +400,20 @@
           "withdateranges": true,
           "watchlist": [
             "TWSE:TAIEX",
-            "TWSE:0050",
+            "TPEX:OTCI",
+            "TWSE:2330",
+            "TWSE:2317",
+            "TWSE:2454",
+            "TWSE:2382",
+            "TWSE:3231",
+            "TWSE:2881",
+            "TWSE:2882",
             "SP:SPX",
             "NASDAQ:NDX",
-            "TVC:DJI"
+            "TVC:DJI",
+            "NASDAQ:NVDA",
+            "NASDAQ:AAPL",
+            "NASDAQ:TSLA"
           ]
           }
           </script>
@@ -246,10 +424,31 @@
 
     <!-- TAB 3: Video Hub -->
     <section id="tab-video" class="tab-pane fade-in">
-      <div class="dashboard-header">
-        <h2>影音專區</h2>
-        <p>訂閱 YouTube 頻道，每日獲取最新 AI 財經解析短影音</p>
-      </div>
+      <section class="hero-banner-block" aria-label="影音專區 Banner">
+        <div class="hero-shell">
+          <div class="hero-track">
+            <article class="hero-slide is-active" aria-label="影音專區">
+              <div class="hero-bg bg-video">
+                <div class="wave-bars" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="video-card v1"><div class="play-dot"></div><span>AI 財經日報</span></div>
+                <div class="video-card v2"><div class="play-dot"></div><span>市場快訊</span></div>
+                <div class="video-card v3"><div class="play-dot"></div><span>盤後觀察</span></div>
+              </div>
+              <div class="hero-content">
+                <span class="hero-kicker">Video Hub</span>
+                <h2>影音專區</h2>
+                <div class="hero-meta">
+                  <span class="meta-chip">Short Video</span>
+                  <span class="meta-chip">Auto Publish</span>
+                  <span class="meta-chip">Daily Update</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
 
       <div class="yt-channel-wrapper">
         <div class="yt-hero-card">
@@ -271,14 +470,20 @@
           </a>
         </div>
 
-        <div class="yt-embed-container">
-          <iframe
-            src="https://www.youtube.com/embed?listType=user_uploads&list=UCIEr1HSgijuXq6S2L1R0T9A&rel=0&modestbranding=1"
-            title="財經雷達 YouTube 最新影片"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowfullscreen
-          ></iframe>
+        <!-- 最新主推影片（由 JS 填入）-->
+        <div id="video-featured-container">
+          <div class="yt-embed-container">
+            <iframe
+              src="https://www.youtube.com/embed?listType=user_uploads&list=UCIEr1HSgijuXq6S2L1R0T9A&rel=0&modestbranding=1"
+              title="財經雷達 YouTube 最新影片"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+            ></iframe>
+          </div>
         </div>
+
+        <!-- 過往影片 grid（由 JS 填入）-->
+        <div id="video-grid-container"></div>
 
         <p class="yt-footer-link">
           觀看更多影片請前往
@@ -314,7 +519,7 @@
 
       <p class="footer-note">本站內容由 AI 自動整合財經資訊生成，僅供學術研究與市場觀察參考，不構成投資建議。</p>
       <p class="footer-copyright">著作權歸原作者所有，未經授權請勿轉載或商業使用</p>
-      <p class="footer-copy">&copy; 2026 財經雷達</p>
+      <p class="footer-copy">&copy; 2026 <a href="https://denny5566.github.io/my_portfolio/" target="_blank" rel="noopener noreferrer">Denny</a></p>
     </div>
   </footer>
 

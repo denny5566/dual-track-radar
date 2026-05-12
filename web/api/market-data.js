@@ -17,21 +17,37 @@ const MAX_HISTORY = 7; // 最多保留幾天的收盤價（用於 sparkline）
 // ── Stooq symbol 對照 ─────────────────────────────────────────────────────────
 
 const MACRO_CONFIGS = [
-  { key: 'vix',   symbol: '^vix',   decimals: 2 },
-  { key: 'us10y', symbol: '10usy.b', decimals: 3 },
-  { key: 'dxy',   symbol: 'dxy.fx', decimals: 2 },
-  { key: 'gold',  symbol: 'xauusd', decimals: 1 },
-  { key: 'wti',   symbol: 'cl.f',   decimals: 2 },
+  { key: 'usdtwd', symbol: 'usdtwd',  decimals: 3 },
+  { key: 'twse',   symbol: '^twse',   decimals: 2 },
+  { key: 'brent',  symbol: 'cb.f',    decimals: 2 },
+  { key: 'gold',   symbol: 'xauusd',  decimals: 1 },
+  { key: 'copper', symbol: 'hg.f',    decimals: 2 },
 ];
 
 const TICKER_CONFIGS = [
-  { symbol: '^twii',  name: '台股加權' },
-  { symbol: '^spx',   name: 'S&P 500'  },
-  { symbol: '^ndx',   name: 'Nasdaq'   },
-  { symbol: '^dji',   name: '道瓊'     },
-  { symbol: 'tsm.us', name: '台積電ADR'},
-  { symbol: 'xauusd', name: '黃金'     },
-  { symbol: 'cl.f',   name: 'WTI'      },
+  { symbol: '^twse', name: '台股加權'     },
+  { symbol: '^spx',  name: 'S&P 500'      },
+  { symbol: '^ndx',  name: 'Nasdaq 100'   },
+  { symbol: '^dji',  name: '道瓊工業'     },
+  { symbol: '^nkx',  name: '日經 225'     },
+  { symbol: '^hsi',  name: '香港恆生'     },
+  { symbol: '^dax',  name: '德國 DAX'     },
+  { symbol: 'usdtwd', name: '美元/台幣'   },
+  { symbol: 'dxy.fx', name: '美元指數 DXY'},
+  { symbol: 'cb.f',   name: '布蘭特原油'  },
+];
+
+const FRED_GRAPH_URL = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=';
+const FRED_API_URL = 'https://api.stlouisfed.org/fred/series/observations';
+const FRED_API_KEY = process.env.FRED_API_KEY || '';
+const CBC_DASHBOARD_URL = 'https://www.cbc.gov.tw/tw/lp-101-1.html';
+
+const STAT_CONFIGS = [
+  { key: 'us_fedfunds',       type: 'fred', seriesId: 'FEDFUNDS',         unit: '%',     decimals: 2 },
+  { key: 'us_initial_claims', type: 'fred', seriesId: 'ICSA',             unit: '人',    decimals: 0 },
+  { key: 'tw_rediscount_rate', type: 'cbc', title: '重貼現率',             unit: '%',     decimals: 2 },
+  { key: 'tw_m2_yoy',         type: 'cbc', title: '貨幣總計數M2年增率',    unit: '%',     decimals: 2 },
+  { key: 'tw_overnight_rate', type: 'cbc', title: '金融業隔夜拆款利率',    unit: '%',     decimals: 3 },
 ];
 
 // ── Stooq 即時報價（CSV 格式）────────────────────────────────────────────────
@@ -68,13 +84,121 @@ async function fetchStooqQuote(symbol) {
   return { close, open, date };
 }
 
+async function fetchFredLatest(seriesId) {
+  if (FRED_API_KEY) {
+    const byApi = await fetchFredLatestByApi(seriesId).catch(() => null);
+    if (byApi) return byApi;
+  }
+
+  // Fallback for environments without FRED API key.
+  // Some series can be read from fredgraph CSV, but not all (e.g. MOVE/NAPM may be blocked).
+  const url = `${FRED_GRAPH_URL}${encodeURIComponent(seriesId)}`;
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StockRadar/1.0)' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) return null;
+
+  const text = await res.text();
+  if (!text || text.includes('<html')) return null;
+
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return null;
+
+  for (let i = lines.length - 1; i >= 1; i -= 1) {
+    const row = lines[i].trim();
+    if (!row) continue;
+    const [date, rawVal] = row.split(',');
+    if (!date || !rawVal) continue;
+    if (rawVal === '.' || rawVal === 'nan') continue;
+
+    const value = parseFloat(rawVal);
+    if (Number.isNaN(value)) continue;
+
+    return { value, date };
+  }
+
+  return null;
+}
+
+async function fetchFredLatestByApi(seriesId) {
+  const params = new URLSearchParams({
+    series_id: seriesId,
+    file_type: 'json',
+    sort_order: 'desc',
+    limit: '12',
+  });
+
+  const res = await fetch(`${FRED_API_URL}?${params.toString()}`, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; StockRadar/1.0)',
+      Authorization: `Bearer ${FRED_API_KEY}`,
+    },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) return null;
+
+  const body = await res.json();
+  const observations = body?.observations;
+  if (!Array.isArray(observations)) return null;
+
+  for (const ob of observations) {
+    if (!ob) continue;
+    const rawVal = ob.value;
+    if (rawVal == null || rawVal === '.' || rawVal === 'nan') continue;
+    const value = parseFloat(rawVal);
+    if (Number.isNaN(value)) continue;
+    return { value, date: ob.date };
+  }
+
+  return null;
+}
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractCbcStat(html, title) {
+  const p = new RegExp(
+    `<h3>${escapeRegex(title)}<\\/h3>[\\s\\S]*?<span class="date">([^<]+)<\\/span>[\\s\\S]*?<span class="info"><em>([^<]+)<\\/em>`,
+    'i',
+  );
+
+  const m = html.match(p);
+  if (!m) return null;
+
+  const date = (m[1] || '').trim();
+  const raw = (m[2] || '').trim();
+  const val = parseFloat(raw.replace(/,/g, '').replace(/%/g, ''));
+  if (Number.isNaN(val)) return null;
+
+  return { value: val, date, raw };
+}
+
+async function fetchCbcStats() {
+  const res = await fetch(CBC_DASHBOARD_URL, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StockRadar/1.0)' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) return {};
+
+  const html = await res.text();
+  if (!html || !html.includes('重貼現率')) return {};
+
+  return {
+    tw_rediscount_rate: extractCbcStat(html, '重貼現率'),
+    tw_m2_yoy: extractCbcStat(html, '貨幣總計數M2年增率'),
+    tw_overnight_rate: extractCbcStat(html, '金融業隔夜拆款利率'),
+  };
+}
+
 // ── 快取 ─────────────────────────────────────────────────────────────────────
 
 function loadCache() {
   try {
     return JSON.parse(readFileSync(CACHE_PATH, 'utf-8'));
   } catch {
-    return { macro: {}, ticker: [], closesHistory: {}, ts: 0 };
+    return { macro: {}, ticker: [], macroStats: {}, closesHistory: {}, ts: 0 };
   }
 }
 
@@ -136,6 +260,35 @@ export default async function handler(req, res) {
     })
   );
 
+  const macroStats = {};
+  let statsFresh = false;
+
+  const cbcMap = await fetchCbcStats().catch(() => ({}));
+  for (const cfg of STAT_CONFIGS) {
+    const cached = cache.macroStats?.[cfg.key];
+    let latest = null;
+
+    if (cfg.type === 'fred') {
+      latest = await fetchFredLatest(cfg.seriesId).catch(() => null);
+    } else if (cfg.type === 'cbc') {
+      latest = cbcMap[cfg.key] || null;
+    }
+
+    if (latest) {
+      macroStats[cfg.key] = {
+        value: latest.value,
+        date: latest.date,
+        unit: cfg.unit,
+        decimals: cfg.decimals,
+        source: cfg.type === 'fred' ? `FRED:${cfg.seriesId}` : 'CBC',
+        fresh: true,
+      };
+      statsFresh = true;
+    } else if (cached) {
+      macroStats[cfg.key] = { ...cached, fresh: false };
+    }
+  }
+
   let anyFresh = false; // 是否有任何新鮮數據
 
   // ── 組裝 macro ───────────────────────────────────────────────────────────────
@@ -193,7 +346,7 @@ export default async function handler(req, res) {
   }
 
   // ── 更新快取（只有獲得新數據時才覆寫）──────────────────────────────────────
-  if (anyFresh) {
+  if (anyFresh || statsFresh) {
     // 儲存 macro（僅含最新一筆，sparkline 在 closesHistory 裡）
     const macroToCache = {};
     for (const [k, v] of Object.entries(macro)) {
@@ -202,12 +355,13 @@ export default async function handler(req, res) {
     saveCache({
       macro: macroToCache,
       ticker,
+      macroStats,
       closesHistory,
       ts: Date.now(),
     });
   }
 
-  const ts = anyFresh ? Date.now() : (cache.ts ?? 0);
+  const ts = (anyFresh || statsFresh) ? Date.now() : (cache.ts ?? 0);
 
-  res.end(JSON.stringify({ macro, ticker, ts, stale: !anyFresh }));
+  res.end(JSON.stringify({ macro, ticker, macroStats, ts, stale: !(anyFresh || statsFresh) }));
 }

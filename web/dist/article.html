@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>財經雷達</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <meta name="description" content="AI 財經情報速報">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/article-CCXbA8A-.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/style-D6EUmvfK.js">
+  <link rel="stylesheet" crossorigin href="/assets/style-exZ6oPPH.css">
+</head>
+<body>
+
+  <!-- Reading Progress -->
+  <div id="reading-progress" class="reading-progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+
+  <!-- Live Market Ticker -->
+  <div class="ticker-wrap">
+    <div class="ticker-badge">LIVE</div>
+    <div class="ticker-scroll-area">
+      <div class="ticker-track" id="ticker-track">
+        <div class="ticker-placeholder">市場數據載入中…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container header-row">
+      <a href="/" class="back-link" aria-label="返回首頁">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="19" y1="12" x2="5" y2="12"/>
+          <polyline points="12 19 5 12 12 5"/>
+        </svg>
+        <span>返回</span>
+      </a>
+      <a href="/" class="logo logo-sm" aria-label="財經雷達首頁">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/>
+          <circle cx="12" cy="12" r="5"/>
+          <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+          <line x1="12" y1="3" x2="12" y2="6"/>
+          <line x1="12" y1="18" x2="12" y2="21"/>
+          <line x1="3" y1="12" x2="6" y2="12"/>
+          <line x1="18" y1="12" x2="21" y2="12"/>
+        </svg>
+        <span class="logo-text">財經雷達</span>
+      </a>
+      <span class="header-date" id="header-date"></span>
+    </div>
+  </header>
+
+  <!-- Article -->
+  <div class="container article-container">
+
+    <!-- Kicker -->
+    <div class="article-kicker">
+      <span class="kicker-category" id="kicker-category">台股 · 美股 · 宏觀</span>
+      <span class="kicker-sep">·</span>
+      <span class="kicker-date" id="kicker-date"></span>
+    </div>
+
+    <!-- Headline -->
+    <h1 class="article-headline" id="article-headline">
+      <span class="skeleton sk-headline"></span>
+    </h1>
+
+    <!-- Meta row -->
+    <div class="article-meta" id="article-meta">
+      <span class="meta-item">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span id="reading-time">閱讀約 3 分鐘</span>
+      </span>
+      <span class="meta-item meta-ai">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 0 6h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1 0-6h1V6a4 4 0 0 1 4-4z"/>
+        </svg>
+        AI 生成
+      </span>
+    </div>
+
+    <!-- Share Row -->
+    <div class="share-row">
+      <span class="share-label">分享</span>
+      <a class="share-btn share-line" id="share-line" href="#" target="_blank" rel="noopener" aria-label="分享到 LINE">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.070 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
+        LINE
+      </a>
+      <a class="share-btn share-fb" id="share-fb" href="#" target="_blank" rel="noopener" aria-label="分享到 Facebook">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+        Facebook
+      </a>
+      <button class="share-btn share-copy" id="share-copy" aria-label="複製連結">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        複製連結
+      </button>
+    </div>
+
+    <!-- Cover Image (Hero — top of article) -->
+    <figure class="article-cover" id="article-cover" hidden>
+      <div class="cover-img-wrap">
+        <img id="cover-img" alt="">
+      </div>
+      <figcaption class="cover-caption">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+        </svg>
+        圖片來源：Pexels · 僅供示意
+      </figcaption>
+    </figure>
+
+    <div class="divider"></div>
+
+    <!-- Body + Sidebar -->
+    <div class="content-grid">
+
+      <main class="article-body" id="article-body">
+        <div id="article-content">
+          <div class="skeleton sk-block" style="height:1.2rem;width:45%;margin-bottom:.75rem"></div>
+          <div class="skeleton sk-text"></div>
+          <div class="skeleton sk-text"></div>
+          <div class="skeleton sk-text short"></div>
+          <div class="skeleton sk-block" style="height:1.2rem;width:55%;margin-top:2rem;margin-bottom:.75rem"></div>
+          <div class="skeleton sk-text"></div>
+          <div class="skeleton sk-text short"></div>
+        </div>
+      </main>
+
+      <aside class="sidebar" id="sidebar">
+        <div class="skeleton sk-block" style="height:160px;margin-bottom:1rem"></div>
+        <div class="skeleton sk-block" style="height:200px;margin-bottom:1rem"></div>
+        <div class="skeleton sk-block" style="height:200px"></div>
+      </aside>
+
+    </div>
+
+    <!-- Tags -->
+    <div class="tags-row" id="tags-row"></div>
+
+    <!-- Footer -->
+    <footer class="article-footer">
+      <div class="disclaimer">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        本文由 AI 自動整合財經資訊生成，僅供學術研究與市場觀察參考，不構成任何投資建議。
+      </div>
+      <p class="footer-copy">&copy; 2026 <a href="https://denny5566.github.io/my_portfolio/" target="_blank" rel="noopener noreferrer">Denny</a></p>
+    </footer>
+  </div>
+
+  <!-- AI Chat Overlay -->
+  <div class="ai-drawer-overlay" id="ai-overlay"></div>
+
+  <!-- AI Chat Drawer -->
+  <aside class="ai-drawer" id="ai-drawer" aria-label="AI 財經分析助手" role="complementary">
+    <div class="ai-drawer-header">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/>
+        <circle cx="12" cy="12" r="4.5"/>
+        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>
+        <line x1="12" y1="3" x2="12" y2="5.5"/>
+        <line x1="12" y1="18.5" x2="12" y2="21"/>
+        <line x1="3" y1="12" x2="5.5" y2="12"/>
+        <line x1="18.5" y1="12" x2="21" y2="12"/>
+        <line x1="12" y1="12" x2="18.5" y2="5.5" stroke-width="1.2"/>
+      </svg>
+      <span class="ai-drawer-title">雷達 AI 分析</span>
+      <button class="ai-drawer-close" id="ai-close" aria-label="關閉">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="ai-chat-messages" id="ai-messages">
+      <div class="ai-msg assistant">
+        你好！我是<strong>財經雷達 AI 助手</strong>。<br><br>
+        我可以幫你：<br>
+        · 解析今日報告的重點與數據<br>
+        · 說明財經術語或指標（EPS、費半、殖利率等）<br>
+        · 延伸討論台股、美股的市場結構<br>
+        · 對比雙軌觀點，梳理分歧與共識<br><br>
+        點擊下方問題快速開始，或直接輸入你想問的 👇
+      </div>
+    </div>
+
+    <div class="ai-suggestions" id="ai-suggestions">
+      <button class="ai-suggestion-btn">今日最重要的市場訊號是什麼？</button>
+      <button class="ai-suggestion-btn">兩位分析師的觀點有何分歧？</button>
+      <button class="ai-suggestion-btn">今日提到的關鍵支撐壓力位在哪裡？</button>
+      <button class="ai-suggestion-btn">目前市場情緒偏多還是偏空？</button>
+      <button class="ai-suggestion-btn">費半是什麼？對台股有何影響？</button>
+      <button class="ai-suggestion-btn">短線操作需要注意哪些風險？</button>
+    </div>
+
+    <div class="ai-chat-footer">
+      <textarea class="ai-chat-input" id="ai-input" placeholder="問我今日報告、市場解析、財經術語…" rows="1"></textarea>
+      <button class="ai-chat-send" id="ai-send" aria-label="送出">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- FAB: Radar / AI -->
+  <button class="fab" id="fab" aria-label="AI 雷達分析" title="AI 雷達分析">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/>
+      <circle cx="12" cy="12" r="4.5"/>
+      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>
+      <line x1="12" y1="3" x2="12" y2="5.5"/>
+      <line x1="12" y1="18.5" x2="12" y2="21"/>
+      <line x1="3" y1="12" x2="5.5" y2="12"/>
+      <line x1="18.5" y1="12" x2="21" y2="12"/>
+      <line x1="12" y1="12" x2="18.5" y2="5.5" stroke-width="1.2"/>
+    </svg>
+  </button>
+
+</body>
+</html>

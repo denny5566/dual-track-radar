@@ -2,6 +2,8 @@
 
 自動追蹤兩個 YouTube 財經頻道，取得逐字稿或音檔後完成分析，輸出網站資料、PDF、Banner、影片素材，並可透過 Discord 控制整條流程。
 
+> 最新全面檢查摘要：`AUDIT_REPORT.md`（2026-04-21）
+
 監控頻道：
 - [群益期貨觀點](https://www.youtube.com/@i-view6024/streams)
 - [游庭澔的財經皓角](https://www.youtube.com/@yutinghaofinance/streams)
@@ -40,6 +42,14 @@ Email / YouTube / Instagram / Discord 審核
 ```bash
 pip install -r requirements.txt
 playwright install chromium
+```
+
+## 快速健康檢查
+
+```bash
+python tools/health_check.py
+cd web && npm run build
+cd ../video && npx tsc --noEmit
 ```
 
 ## .env 重點設定

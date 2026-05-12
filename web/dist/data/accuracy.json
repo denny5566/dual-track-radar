@@ -1,0 +1,22 @@
+{
+  "symbol": "^TWII",
+  "accuracy_pct": 0,
+  "total": 1,
+  "correct": 0,
+  "bullish_total": 1,
+  "bullish_win_rate": 0,
+  "bearish_total": 0,
+  "bearish_win_rate": null,
+  "last_updated": "2026-04-20",
+  "recent": [
+    {
+      "date": "2026-04-16",
+      "signal": "bullish",
+      "cap_sentiment": "偏多",
+      "yu_sentiment": "樂觀",
+      "t1_date": "2026-04-17",
+      "t1_chg_pct": -0.88,
+      "correct": false
+    }
+  ]
+}
