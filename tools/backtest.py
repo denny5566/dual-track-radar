@@ -24,7 +24,8 @@ OUT_PATH = ROOT / "web" / "public" / "data" / "accuracy.json"
 
 # 情緒關鍵字 → 方向
 BULLISH_KEYWORDS = ["偏多", "樂觀", "看多", "積極", "多頭", "上漲"]
-BEARISH_KEYWORDS = ["偏空", "看空", "悲觀", "保守", "謹慎", "空頭", "下跌", "賣出"]
+BEARISH_KEYWORDS = ["偏空", "看空", "悲觀", "空頭", "下跌", "賣出"]
+# 保守／謹慎 是「觀望」而非明確看空，歸入 neutral
 
 
 def classify(sentiment: str) -> str:
