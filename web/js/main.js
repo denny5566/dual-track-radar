@@ -566,19 +566,19 @@ async function loadAccuracy() {
       { key: 'fundamental', label: '基本面' },
     ];
 
-    rowsEl.innerHTML = metrics.map(({ key, label }) => {
-      const s = d[key];
-      const pct = s && s.total > 0 ? s.pct : null;
-      return `
-        <div class="acc-row">
-          <span class="acc-label">${label}</span>
-          <span class="acc-pct ${key}">${pct !== null ? pct + '%' : '—'}</span>
-          <div class="acc-bar-wrap">
-            <div class="acc-bar ${key}" style="width:${pct ?? 0}%"></div>
-          </div>
-          <span class="acc-count">${s && s.total > 0 ? s.total + ' 筆' : '累積中'}</span>
-        </div>`;
-    }).join('');
+    const total = d.record_count ?? 0;
+    rowsEl.innerHTML = total === 0 ? `<div style="color:var(--text-3);font-size:.75rem">資料累積中</div>` : `
+      <div class="acc-stack">
+        <div class="acc-seg bull" style="width:${d.bullish_pct}%"></div>
+        <div class="acc-seg neut" style="width:${d.neutral_pct}%"></div>
+        <div class="acc-seg bear" style="width:${d.bearish_pct}%"></div>
+      </div>
+      <div class="acc-legend">
+        <span class="acc-legend-item"><span class="acc-dot bull"></span>偏多 ${d.bullish_pct}%</span>
+        <span class="acc-legend-item"><span class="acc-dot neut"></span>中立 ${d.neutral_pct}%</span>
+        <span class="acc-legend-item"><span class="acc-dot bear"></span>偏空 ${d.bearish_pct}%</span>
+        <span class="acc-legend-item" style="margin-left:auto">近 ${total} 日</span>
+      </div>`;
   } catch {
     // 靜默失敗，不影響主頁面
   }

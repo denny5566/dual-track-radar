@@ -1,41 +1,10 @@
 {
-  "symbol": "^TWII",
   "last_updated": "2026-04-20",
-  "combined": {
-    "pct": 50,
-    "total": 2,
-    "correct": 1
-  },
-  "technical": {
-    "pct": 50,
-    "total": 2,
-    "correct": 1
-  },
-  "fundamental": {
-    "pct": 0,
-    "total": 1,
-    "correct": 0
-  },
-  "recent": [
-    {
-      "date": "2026-04-20",
-      "signal": "bullish",
-      "cap_signal": "bullish",
-      "yu_signal": "neutral",
-      "cap_sentiment": "偏多",
-      "yu_sentiment": "保守偏謹慎",
-      "t1_date": "2026-04-21",
-      "t1_chg_pct": 1.75
-    },
-    {
-      "date": "2026-04-16",
-      "signal": "bullish",
-      "cap_signal": "bullish",
-      "yu_signal": "bullish",
-      "cap_sentiment": "偏多",
-      "yu_sentiment": "樂觀",
-      "t1_date": "2026-04-17",
-      "t1_chg_pct": -0.88
-    }
-  ]
+  "record_count": 2,
+  "bullish": 2,
+  "neutral": 0,
+  "bearish": 0,
+  "bullish_pct": 100,
+  "neutral_pct": 0,
+  "bearish_pct": 0
 }
