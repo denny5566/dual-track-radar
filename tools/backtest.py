@@ -70,12 +70,13 @@ def load_records() -> list[dict]:
         comp = d.get("comparison", {})
         cap_sent = comp.get("capital_futures", {}).get("sentiment", "")
         yu_sent = comp.get("yu_ting_hao", {}).get("sentiment", "")
-        signal = combine_signals(cap_sent, yu_sent)
         records.append({
             "date": date_str,
             "cap_sentiment": cap_sent,
             "yu_sentiment": yu_sent,
-            "signal": signal,
+            "cap_signal": classify(cap_sent),
+            "yu_signal": classify(yu_sent),
+            "signal": combine_signals(cap_sent, yu_sent),
         })
     conn.close()
     return records
@@ -124,12 +125,11 @@ def run(symbol: str = "^TWII") -> dict:
         print("radar.db 中沒有資料", file=sys.stderr)
         return {}
 
-    tradable = [r for r in records if r["signal"] != "neutral"]
     dates = [r["date"] for r in records]
     prices = fetch_prices(symbol, dates)
 
     results = []
-    for r in tradable:
+    for r in records:
         d = r["date"]
         if d not in prices:
             continue
@@ -139,41 +139,42 @@ def run(symbol: str = "^TWII") -> dict:
         p0, p1 = prices[d], prices[t1]
         chg = (p1 - p0) / p0 * 100
         market_up = p1 > p0
-        correct = (r["signal"] == "bullish" and market_up) or \
-                  (r["signal"] == "bearish" and not market_up)
+
+        def hit(sig):
+            return (sig == "bullish" and market_up) or (sig == "bearish" and not market_up)
+
         results.append({
             "date": d,
             "signal": r["signal"],
+            "cap_signal": r["cap_signal"],
+            "yu_signal": r["yu_signal"],
             "cap_sentiment": r["cap_sentiment"],
             "yu_sentiment": r["yu_sentiment"],
             "t1_date": t1,
             "t1_chg_pct": round(chg, 2),
-            "correct": correct,
+            "correct_combined": hit(r["signal"]) if r["signal"] != "neutral" else None,
+            "correct_technical": hit(r["cap_signal"]) if r["cap_signal"] != "neutral" else None,
+            "correct_fundamental": hit(r["yu_signal"]) if r["yu_signal"] != "neutral" else None,
         })
 
-    total = len(results)
-    correct_count = sum(1 for r in results if r["correct"])
-    accuracy_pct = round(correct_count / total * 100) if total else 0
+    def stats(key):
+        rows = [r for r in results if r[key] is not None]
+        total = len(rows)
+        correct = sum(1 for r in rows if r[key])
+        return {"pct": round(correct / total * 100) if total else 0, "total": total, "correct": correct}
 
-    bullish_rows = [r for r in results if r["signal"] == "bullish"]
-    bearish_rows = [r for r in results if r["signal"] == "bearish"]
-
-    def win_rate(rows):
-        if not rows:
-            return None
-        return round(sum(1 for r in rows if r["correct"]) / len(rows) * 100)
+    recent = [
+        {k: v for k, v in r.items() if k not in ("correct_combined", "correct_technical", "correct_fundamental")}
+        for r in reversed(results[-10:])
+    ]
 
     output = {
         "symbol": symbol,
-        "accuracy_pct": accuracy_pct,
-        "total": total,
-        "correct": correct_count,
-        "bullish_total": len(bullish_rows),
-        "bullish_win_rate": win_rate(bullish_rows),
-        "bearish_total": len(bearish_rows),
-        "bearish_win_rate": win_rate(bearish_rows),
         "last_updated": max(dates) if dates else "",
-        "recent": list(reversed(results[-10:])),
+        "combined":    stats("correct_combined"),
+        "technical":   stats("correct_technical"),
+        "fundamental": stats("correct_fundamental"),
+        "recent": recent,
     }
     return output
 
@@ -192,7 +193,8 @@ def main():
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
-    print(f"[backtest] 完成：正確率 {output['accuracy_pct']}%（{output['correct']}/{output['total']} 筆）")
+    c = output['combined']
+    print(f"[backtest] 完成：綜合 {c['pct']}%（{c['correct']}/{c['total']} 筆）")
     print(f"[backtest] 輸出 → {OUT_PATH}")
 
 

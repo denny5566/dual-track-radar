@@ -551,32 +551,34 @@ async function loadAccuracy() {
     if (!res.ok) return;
     const d = await res.json();
 
-    const pctEl = document.getElementById('acc-pct');
-    const barEl = document.getElementById('acc-bar');
-    const countEl = document.getElementById('acc-count');
+    const rowsEl = document.getElementById('acc-rows');
     const updEl = document.getElementById('acc-updated');
-    const bdEl = document.getElementById('acc-breakdown');
-    if (!pctEl) return;
+    if (!rowsEl) return;
 
-    pctEl.textContent = d.total > 0 ? d.accuracy_pct : '—';
-    barEl.style.width = d.total > 0 ? `${d.accuracy_pct}%` : '0%';
-    countEl.textContent = d.total > 0 ? `累計 ${d.total} 筆` : '資料累積中';
     if (d.last_updated) {
       const [, m, dd] = d.last_updated.split('-');
       updEl.textContent = `更新 ${m}/${dd}`;
     }
 
-    const rows = [];
-    if (d.bullish_total > 0) {
-      rows.push(`<div class="acc-row"><span class="acc-badge bull">看多</span><span class="acc-val">${d.bullish_win_rate}%</span> 勝率（${d.bullish_total} 筆）</div>`);
-    }
-    if (d.bearish_total > 0) {
-      rows.push(`<div class="acc-row"><span class="acc-badge bear">看空</span><span class="acc-val">${d.bearish_win_rate}%</span> 勝率（${d.bearish_total} 筆）</div>`);
-    }
-    if (rows.length === 0) {
-      rows.push(`<div style="color:var(--text-3);font-size:.75rem">樣本累積中，敬請期待</div>`);
-    }
-    bdEl.innerHTML = rows.join('');
+    const metrics = [
+      { key: 'combined',    label: '綜合' },
+      { key: 'technical',   label: '技術面' },
+      { key: 'fundamental', label: '基本面' },
+    ];
+
+    rowsEl.innerHTML = metrics.map(({ key, label }) => {
+      const s = d[key];
+      const pct = s && s.total > 0 ? s.pct : null;
+      return `
+        <div class="acc-row">
+          <span class="acc-label">${label}</span>
+          <span class="acc-pct ${key}">${pct !== null ? pct + '%' : '—'}</span>
+          <div class="acc-bar-wrap">
+            <div class="acc-bar ${key}" style="width:${pct ?? 0}%"></div>
+          </div>
+          <span class="acc-count">${s && s.total > 0 ? s.total + ' 筆' : '累積中'}</span>
+        </div>`;
+    }).join('');
   } catch {
     // 靜默失敗，不影響主頁面
   }
