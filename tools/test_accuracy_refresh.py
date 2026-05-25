@@ -14,6 +14,12 @@ def main() -> None:
     assert "setInterval(() => loadAccuracy({ bustCache: true })" in source, (
         "AI accuracy widget should refresh on an interval after initial page load"
     )
+    assert "renderAccuracyRow('技術面'" in source, (
+        "AI accuracy widget should render a separate technical sentiment row"
+    )
+    assert "renderAccuracyRow('總經面'" in source, (
+        "AI accuracy widget should render a separate macro sentiment row"
+    )
 
 
 if __name__ == "__main__":

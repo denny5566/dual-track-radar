@@ -68,6 +68,10 @@ def main() -> None:
         assert output["last_updated"] == "2026-05-25"
         assert output["record_count"] == 2
         assert output["neutral"] == 1
+        assert output["technical"]["bearish"] == 1
+        assert output["technical"]["bearish_pct"] == 50
+        assert output["macro"]["bullish"] == 2
+        assert output["macro"]["bullish_pct"] == 100
 
 
 if __name__ == "__main__":

@@ -52,9 +52,13 @@ def record_from_report(date_str: str, report: dict) -> dict | None:
     yu_sent = comp.get("yu_ting_hao", {}).get("sentiment", "")
     if not (cap_sent or yu_sent):
         return None
+    technical = classify(cap_sent)
+    macro = classify(yu_sent)
     return {
         "date": date_str,
         "signal": combine(cap_sent, yu_sent),
+        "technical": technical,
+        "macro": macro,
     }
 
 
@@ -119,6 +123,20 @@ def run() -> dict:
         print("radar.db 中沒有資料", file=sys.stderr)
         return {}
 
+    def summarize(key: str) -> dict:
+        total = len(records)
+        bull = sum(1 for r in records if r[key] == "bullish")
+        bear = sum(1 for r in records if r[key] == "bearish")
+        neut = total - bull - bear
+        return {
+            "bullish": bull,
+            "neutral": neut,
+            "bearish": bear,
+            "bullish_pct": round(bull / total * 100) if total else 0,
+            "neutral_pct": round(neut / total * 100) if total else 0,
+            "bearish_pct": round(bear / total * 100) if total else 0,
+        }
+
     total = len(records)
     bull = sum(1 for r in records if r["signal"] == "bullish")
     bear = sum(1 for r in records if r["signal"] == "bearish")
@@ -133,6 +151,8 @@ def run() -> dict:
         "bullish_pct": round(bull / total * 100) if total else 0,
         "neutral_pct": round(neut / total * 100) if total else 0,
         "bearish_pct": round(bear / total * 100) if total else 0,
+        "technical": summarize("technical"),
+        "macro": summarize("macro"),
     }
     return output
 

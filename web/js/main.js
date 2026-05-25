@@ -545,6 +545,21 @@ async function initVideos() {
 
 // ── AI 觀點驗證 Widget ────────────────────────────────
 
+function renderAccuracyRow(label, stats) {
+  return `
+    <div class="acc-row">
+      <div class="acc-row-head">
+        <span class="acc-row-label">${label}</span>
+        <span class="acc-row-summary">偏多 ${stats.bullish_pct}% · 中立 ${stats.neutral_pct}% · 偏空 ${stats.bearish_pct}%</span>
+      </div>
+      <div class="acc-stack">
+        <div class="acc-seg bull" style="width:${stats.bullish_pct}%"></div>
+        <div class="acc-seg neut" style="width:${stats.neutral_pct}%"></div>
+        <div class="acc-seg bear" style="width:${stats.bearish_pct}%"></div>
+      </div>
+    </div>`;
+}
+
 async function loadAccuracy(options = {}) {
   try {
     const url = options.bustCache
@@ -563,23 +578,24 @@ async function loadAccuracy(options = {}) {
       updEl.textContent = `更新 ${m}/${dd}`;
     }
 
-    const metrics = [
-      { key: 'combined',    label: '綜合' },
-      { key: 'technical',   label: '技術面' },
-      { key: 'fundamental', label: '基本面' },
-    ];
-
     const total = d.record_count ?? 0;
+    const combined = {
+      bullish_pct: d.bullish_pct ?? 0,
+      neutral_pct: d.neutral_pct ?? 0,
+      bearish_pct: d.bearish_pct ?? 0,
+    };
+    const technical = d.technical || combined;
+    const macro = d.macro || combined;
+
     rowsEl.innerHTML = total === 0 ? `<div style="color:var(--text-3);font-size:.75rem">資料累積中</div>` : `
-      <div class="acc-stack">
-        <div class="acc-seg bull" style="width:${d.bullish_pct}%"></div>
-        <div class="acc-seg neut" style="width:${d.neutral_pct}%"></div>
-        <div class="acc-seg bear" style="width:${d.bearish_pct}%"></div>
+      <div class="acc-row-list">
+        ${renderAccuracyRow('技術面', technical)}
+        ${renderAccuracyRow('總經面', macro)}
       </div>
       <div class="acc-legend">
-        <span class="acc-legend-item"><span class="acc-dot bull"></span>偏多 ${d.bullish_pct}%</span>
-        <span class="acc-legend-item"><span class="acc-dot neut"></span>中立 ${d.neutral_pct}%</span>
-        <span class="acc-legend-item"><span class="acc-dot bear"></span>偏空 ${d.bearish_pct}%</span>
+        <span class="acc-legend-item"><span class="acc-dot bull"></span>偏多</span>
+        <span class="acc-legend-item"><span class="acc-dot neut"></span>中立</span>
+        <span class="acc-legend-item"><span class="acc-dot bear"></span>偏空</span>
         <span class="acc-legend-item" style="margin-left:auto">近 ${total} 日</span>
       </div>`;
   } catch {
