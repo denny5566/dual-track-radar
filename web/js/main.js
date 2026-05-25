@@ -545,9 +545,12 @@ async function initVideos() {
 
 // ── AI 觀點驗證 Widget ────────────────────────────────
 
-async function loadAccuracy() {
+async function loadAccuracy(options = {}) {
   try {
-    const res = await fetch('/data/accuracy.json');
+    const url = options.bustCache
+      ? `/data/accuracy.json?t=${Date.now()}`
+      : '/data/accuracy.json';
+    const res = await fetch(url, { cache: options.bustCache ? 'no-store' : 'default' });
     if (!res.ok) return;
     const d = await res.json();
 
@@ -617,6 +620,7 @@ async function init() {
 
   // 每 5 分鐘自動刷新
   setInterval(loadMarketData, 5 * 60 * 1000);
+  setInterval(() => loadAccuracy({ bustCache: true }), 5 * 60 * 1000);
 }
 
 document.addEventListener('DOMContentLoaded', init);
