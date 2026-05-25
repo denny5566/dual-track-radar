@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "radar.db"
 OUT_PATH = ROOT / "web" / "public" / "data" / "accuracy.json"
+PUBLIC_DATA_DIR = ROOT / "web" / "public" / "data"
 
 BULLISH_KEYWORDS = ["偏多", "樂觀", "看多", "積極", "多頭", "上漲"]
 BEARISH_KEYWORDS = ["偏空", "看空", "悲觀", "空頭", "下跌", "賣出"]
@@ -45,28 +46,71 @@ def combine(cap: str, yu: str) -> str:
     return "neutral"
 
 
-def load_records() -> list[dict]:
+def record_from_report(date_str: str, report: dict) -> dict | None:
+    comp = report.get("comparison", {})
+    cap_sent = comp.get("capital_futures", {}).get("sentiment", "")
+    yu_sent = comp.get("yu_ting_hao", {}).get("sentiment", "")
+    if not (cap_sent or yu_sent):
+        return None
+    return {
+        "date": date_str,
+        "signal": combine(cap_sent, yu_sent),
+    }
+
+
+def load_db_records(cutoff: str) -> list[dict]:
+    if not DB_PATH.exists():
+        return []
+
     conn = sqlite3.connect(DB_PATH)
     conn.text_factory = bytes
     c = conn.cursor()
-    cutoff = (date.today() - timedelta(days=30)).isoformat()
     c.execute("SELECT date, json_data FROM daily_reports WHERE date >= ? ORDER BY date", (cutoff,))
     records = []
-    for date_b, raw_b in c.fetchall():
-        date_str = date_b.decode("utf-8")
+    for date_value, raw_value in c.fetchall():
+        date_str = date_value.decode("utf-8") if isinstance(date_value, bytes) else str(date_value)
+        raw = raw_value.decode("utf-8") if isinstance(raw_value, bytes) else str(raw_value)
         try:
-            d = json.loads(raw_b.decode("utf-8"))
+            d = json.loads(raw)
         except Exception:
             continue
-        comp = d.get("comparison", {})
-        cap_sent = comp.get("capital_futures", {}).get("sentiment", "")
-        yu_sent = comp.get("yu_ting_hao", {}).get("sentiment", "")
-        records.append({
-            "date": date_str,
-            "signal": combine(cap_sent, yu_sent),
-        })
+        record = record_from_report(date_str, d)
+        if record:
+            records.append(record)
     conn.close()
     return records
+
+
+def load_json_records(cutoff: str) -> list[dict]:
+    records = []
+    if not PUBLIC_DATA_DIR.exists():
+        return records
+
+    for path in sorted(PUBLIC_DATA_DIR.glob("20*.json")):
+        try:
+            d = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+        date_str = d.get("meta", {}).get("date")
+        if not date_str:
+            stem = path.stem
+            date_str = f"{stem[:4]}-{stem[4:6]}-{stem[6:8]}" if len(stem) == 8 else ""
+        if not date_str or date_str < cutoff:
+            continue
+
+        record = record_from_report(date_str, d)
+        if record:
+            records.append(record)
+    return records
+
+
+def load_records() -> list[dict]:
+    cutoff = (date.today() - timedelta(days=30)).isoformat()
+    by_date = {}
+    for record in load_db_records(cutoff) + load_json_records(cutoff):
+        by_date[record["date"]] = record
+    return [by_date[d] for d in sorted(by_date)]
 
 
 def run() -> dict:
