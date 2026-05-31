@@ -344,25 +344,41 @@ def build_youtube_description(data: dict[str, Any]) -> str:
 
 
 def build_threads_post_text(data: dict[str, Any]) -> str:
-    storyline = str(data.get("storyline") or build_storyline(data.get("events", [])))
-    lines = [
-        "本週市場雷達",
-        storyline,
-        "",
-        "5 個觀察變數：",
-    ]
-    for idx, event in enumerate(data.get("events", [])[:5], start=1):
-        title = str(event.get("title") or event.get("news_sentence") or "").strip()
+    events = data.get("events", [])[:5]
+    if not events:
+        return f"【本週市場焦點】\n{format_calendar_line(data.get('next_week_events', []))}\n\n僅供市場資訊整理，非投資建議。\n#台股 #美股 #財經雷達"
+
+    variables: list[str] = []
+    for event in events:
         variable = _first_market_variable(event)
-        lines.append(f"{idx}. {title}｜{variable}")
-    lines += [
-        "",
-        str(data.get("calendar_line") or format_calendar_line(data.get("next_week_events", []))),
-        DISCLAIMER,
+        if variable and variable not in variables:
+            variables.append(variable)
+        if len(variables) >= 3:
+            break
+
+    def clip(text: str, limit: int) -> str:
+        text = re.sub(r"\s+", " ", str(text or "")).strip(" 。")
+        return text if len(text) <= limit else f"{text[:limit - 1]}…"
+
+    def event_title(event: dict[str, Any], limit: int = 30) -> str:
+        return clip(event.get("title") or event.get("news_sentence") or "", limit)
+
+    focus = "、".join(variables[:-1]) + f"與{variables[-1]}" if len(variables) >= 2 else (variables[0] if variables else "市場資金動向")
+    p1_events = "；".join(event_title(event, 32) for event in events[:2])
+    p2_events = "；".join(event_title(event, 32) for event in events[2:4])
+    p3_event = event_title(events[4], 30) if len(events) >= 5 else ""
+    calendar = clip(data.get("calendar_line") or format_calendar_line(data.get("next_week_events", [])), 34)
+    if calendar and calendar[-1] not in "。！？":
+        calendar = f"{calendar}。"
+
+    paragraphs = [
+        "【本週市場焦點】",
+        f"本週市場焦點落在{focus}。{p1_events}，成為市場評估台股與美股風險偏好的主要線索。",
+        f"美股與科技股方面，{p2_events}，資金仍圍繞利率、成長股評價與產業基本面調整。",
+        f"{f'另外，{p3_event}也受到關注。' if p3_event else ''}{calendar} 僅供市場資訊整理，非投資建議。",
         "#台股 #美股 #財經雷達",
     ]
-    text = "\n".join(line for line in lines if line is not None).strip()
-    return text[:500]
+    return "\n\n".join(paragraph for paragraph in paragraphs if paragraph).strip()
 
 
 def fetch_market_news(start: date, end: date) -> list[dict[str, Any]]:

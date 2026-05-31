@@ -121,22 +121,30 @@ class WeeklyShortsTests(unittest.TestCase):
 
     def test_build_threads_post_text_is_structured_and_compliant(self):
         data = {
-            "storyline": "本週主線是利率與 AI 需求牽動台股與美股。",
             "events": [
-                {"title": f"事件 {i}", "market_variable": "利率預期、科技股估值"}
-                for i in range(1, 6)
+                {"title": "台股市值躍升全球第五大股市，融資水位偏高", "market_variable": "台股資金行情、籌碼風險"},
+                {"title": "10 年期美債殖利率跌破 4.5%，科技股回溫", "market_variable": "美債殖利率、科技股估值"},
+                {"title": "費半指數續創高點，半導體族群成為資金主軸", "market_variable": "半導體供應鏈、AI 需求"},
+                {"title": "中東局勢推升油價波動，能源價格受到關注", "market_variable": "能源價格、通膨預期"},
+                {"title": "SpaceX IPO 帶動被動資金買盤想像", "market_variable": "IPO 資金流向、市場風險偏好"},
             ],
             "calendar_line": "下週留意：FOMC / Core PCE。",
         }
 
         text = build_threads_post_text(data)
 
-        self.assertIn("本週市場雷達", text)
-        self.assertIn("1. 事件 1", text)
-        self.assertIn("5. 事件 5", text)
+        self.assertIn("【本週市場焦點】", text)
+        self.assertIn("台股市值躍升", text)
+        self.assertIn("美債殖利率", text)
+        self.assertIn("SpaceX IPO", text)
         self.assertIn("下週留意", text)
+        self.assertIn("Core PCE。 僅供", text)
         self.assertIn("非投資建議", text)
-        self.assertLessEqual(len(text), 500)
+        self.assertNotIn("5 個觀察變數", text)
+        self.assertNotIn("1.", text)
+        self.assertGreaterEqual(len(text), 250)
+        self.assertLessEqual(len(text), 350)
+        self.assertGreaterEqual(text.count("\n\n"), 3)
 
     def test_create_weekly_short_data_falls_back_to_daily_news_without_market_api(self):
         daily_news = [
