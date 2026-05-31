@@ -8,6 +8,7 @@ from weekly_shorts import (
     build_youtube_description,
     build_audio_segments,
     build_storyline,
+    create_weekly_short_data,
     dedupe_news_items,
     fallback_select_events,
     format_calendar_line,
@@ -135,6 +136,24 @@ class WeeklyShortsTests(unittest.TestCase):
         self.assertIn("下週留意", text)
         self.assertIn("非投資建議", text)
         self.assertLessEqual(len(text), 500)
+
+    def test_create_weekly_short_data_falls_back_to_daily_news_without_market_api(self):
+        daily_news = [
+            {"title": f"Fed rate story {i}", "description": "Rates and yields move markets", "source": "Daily"}
+            for i in range(1, 7)
+        ]
+
+        with patch("weekly_shorts.fetch_market_news", side_effect=RuntimeError("missing key")), \
+             patch("weekly_shorts.fetch_economic_calendar", return_value=[]), \
+             patch("weekly_shorts.load_recent_daily_news", return_value=daily_news), \
+             patch("weekly_shorts.prepare_event_images", side_effect=lambda events: events), \
+             patch("weekly_shorts._llm_select_events", return_value=None):
+            data = create_weekly_short_data(today=date(2026, 5, 31))
+
+        self.assertEqual(data["meta"]["week_end"], "2026-05-31")
+        self.assertGreaterEqual(len(data["events"]), 5)
+        self.assertIn("narration", data)
+        self.assertIn("下週留意", data["calendar_line"])
 
     def test_run_weekly_auto_publish_generates_video_and_publishes_both_platforms(self):
         data = {

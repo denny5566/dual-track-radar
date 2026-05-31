@@ -505,11 +505,23 @@ def create_weekly_short_data(today: date | None = None) -> dict[str, Any]:
     start, end = week_window(today)
     next_start, next_end = next_week_window(today)
 
-    api_news = fetch_market_news(start, end)
     daily_news = load_recent_daily_news()
-    calendar = fetch_economic_calendar(next_start, next_end)
+    try:
+        api_news = fetch_market_news(start, end)
+    except Exception as exc:
+        log.warning("英文市場新聞 API 無法使用，改用既有每日新聞資料：%s", exc)
+        api_news = []
+
+    try:
+        calendar = fetch_economic_calendar(next_start, next_end)
+    except Exception as exc:
+        log.warning("經濟日曆 API 無法使用，改用空日曆：%s", exc)
+        calendar = []
 
     candidates = dedupe_news_items(api_news + daily_news)
+    if not candidates:
+        raise RuntimeError("找不到可用新聞資料，請先產生每日報告或設定市場新聞 API")
+
     events = _llm_select_events(candidates, calendar) or fallback_select_events(candidates, max_events=5)
     events = prepare_event_images(events[:5])
     storyline = build_storyline(events)
