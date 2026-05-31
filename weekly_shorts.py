@@ -370,12 +370,19 @@ def build_threads_post_text(data: dict[str, Any]) -> str:
     calendar = clip(data.get("calendar_line") or format_calendar_line(data.get("next_week_events", [])), 34)
     if calendar and calendar[-1] not in "。！？":
         calendar = f"{calendar}。"
+    summary = clip(
+        data.get("weekly_summary")
+        or f"整體來看，市場將持續檢視{focus}對資金風險偏好與主要指數表現的影響",
+        72,
+    )
+    if summary and summary[-1] not in "。！？":
+        summary = f"{summary}。"
 
     paragraphs = [
         "【本週市場焦點】",
         f"本週市場焦點落在{focus}。{p1_events}，成為市場評估台股與美股風險偏好的主要線索。",
         f"美股與科技股方面，{p2_events}，資金仍圍繞利率、成長股評價與產業基本面調整。",
-        f"{f'另外，{p3_event}也受到關注。' if p3_event else ''}{calendar} 僅供市場資訊整理，非投資建議。",
+        f"{f'另外，{p3_event}也受到關注。' if p3_event else ''}{summary}{calendar}僅供市場資訊整理，非投資建議。",
         "#台股 #美股 #財經雷達",
     ]
     return "\n\n".join(paragraph for paragraph in paragraphs if paragraph).strip()

@@ -138,7 +138,7 @@ class WeeklyShortsTests(unittest.TestCase):
         self.assertIn("美債殖利率", text)
         self.assertIn("SpaceX IPO", text)
         self.assertIn("下週留意", text)
-        self.assertIn("Core PCE。 僅供", text)
+        self.assertIn("Core PCE。僅供", text)
         self.assertIn("非投資建議", text)
         self.assertNotIn("5 個觀察變數", text)
         self.assertNotIn("1.", text)
