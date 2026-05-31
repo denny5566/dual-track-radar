@@ -45,6 +45,18 @@ def _load_weekly_pending() -> dict[str, Any] | None:
     return weekly_shorts.load_pending_weekly_short()
 
 
+def _load_weekly_data_file() -> dict[str, Any] | None:
+    import weekly_shorts
+
+    path = getattr(weekly_shorts, "WEEKLY_DATA_PATH", BASE_DIR / "video" / "src" / "data" / "weekly_short.json")
+    try:
+        if Path(path).exists():
+            return json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return None
+
+
 def _build_threads_text(data: dict[str, Any]) -> str:
     import weekly_shorts
 
@@ -75,12 +87,13 @@ def get_status() -> dict[str, Any]:
     pending = _load_weekly_pending()
     video_exists = VIDEO_PATH.exists()
 
-    if pending:
-        data = pending.get("data") or {}
-        video_path = Path(pending.get("video_path") or VIDEO_PATH)
+    if pending or video_exists:
+        data = (pending or {}).get("data") or _load_weekly_data_file() or {}
+        video_path = Path((pending or {}).get("video_path") or VIDEO_PATH)
         video_exists = video_path.exists()
-        youtube_video_id = data.get("youtube_video_id") or pending.get("youtube_video_id") or ""
-        threads_id = data.get("threads_id") or pending.get("threads_id") or ""
+        youtube_video_id = data.get("youtube_video_id") or (pending or {}).get("youtube_video_id") or ""
+        threads_id = data.get("threads_id") or (pending or {}).get("threads_id") or ""
+        threads_text = _build_threads_text(data) if data else ""
 
         if render.get("state") == "rendering":
             state = "rendering"
@@ -101,7 +114,7 @@ def get_status() -> dict[str, Any]:
             "youtube_video_id": youtube_video_id,
             "youtube_url": f"https://www.youtube.com/watch?v={youtube_video_id}" if youtube_video_id else "",
             "threads_id": threads_id,
-            "threads_text": _build_threads_text(data),
+            "threads_text": threads_text,
             "video_exists": video_exists,
             "video_path": str(video_path),
             "preview_url": PREVIEW_URL if video_exists else "",
@@ -193,10 +206,20 @@ def _save_pending(data: dict[str, Any], video_path: Path) -> None:
     weekly_shorts.save_pending_weekly_short({"data": data, "video_path": video_path})
 
 
+def _load_publish_draft() -> dict[str, Any] | None:
+    pending = _load_weekly_pending()
+    if pending:
+        return pending
+    data = _load_weekly_data_file()
+    if data and VIDEO_PATH.exists():
+        return {"data": data, "video_path": VIDEO_PATH}
+    return None
+
+
 def publish_latest() -> dict[str, Any]:
     import weekly_shorts
 
-    pending = _load_weekly_pending()
+    pending = _load_publish_draft()
     if not pending:
         return {"ok": False, **get_status(), "state": "no_draft", "error": "請先生成短影音與 Threads 草稿"}
 
@@ -221,7 +244,7 @@ def publish_latest() -> dict[str, Any]:
 def publish_threads_latest() -> dict[str, Any]:
     import weekly_shorts
 
-    pending = _load_weekly_pending()
+    pending = _load_publish_draft()
     if not pending:
         return {"ok": False, **get_status(), "state": "no_draft", "error": "請先生成 Threads 草稿"}
 

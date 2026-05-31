@@ -60,6 +60,24 @@ class DashboardVideoPublishTests(unittest.TestCase):
             self.assertFalse(status["youtube_published"])
             self.assertFalse(status["threads_published"])
 
+    def test_status_uses_weekly_data_file_when_video_exists_without_pending_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            video_path = tmp_path / "weekly_short.mp4"
+            video_path.write_bytes(b"fake mp4")
+            data = sample_weekly_data()
+
+            with patch.object(publish, "VIDEO_PATH", video_path), \
+                 patch.object(publish, "RENDER_STATUS_PATH", tmp_path / "render_status.json"), \
+                 patch.object(publish, "_load_weekly_pending", return_value=None), \
+                 patch.object(publish, "_load_weekly_data_file", return_value=data), \
+                 patch.object(publish, "_build_threads_text", return_value="Threads 檔案草稿"):
+                status = publish.get_status()
+
+            self.assertEqual(status["state"], "ready")
+            self.assertEqual(status["date"], "2026-05-31")
+            self.assertEqual(status["threads_text"], "Threads 檔案草稿")
+
     def test_status_tracks_individual_youtube_and_threads_publish_flags(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -147,6 +165,25 @@ class DashboardVideoPublishTests(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertEqual(result["threads_id"], "thread123")
             self.assertEqual(data["threads_id"], "thread123")
+
+    def test_publish_threads_can_use_weekly_data_file_without_pending_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            video_path = Path(tmp) / "weekly_short.mp4"
+            video_path.write_bytes(b"fake mp4")
+            data = sample_weekly_data()
+            fake_weekly = types.SimpleNamespace(publish_weekly_threads=lambda payload: "thread123")
+
+            with patch.object(publish, "VIDEO_PATH", video_path), \
+                 patch.object(publish, "_load_weekly_pending", return_value=None), \
+                 patch.object(publish, "_load_weekly_data_file", return_value=data), \
+                 patch.object(publish, "_save_pending") as save_pending, \
+                 patch.object(publish, "_build_threads_text", return_value="Threads 草稿"), \
+                 patch.dict(sys.modules, {"weekly_shorts": fake_weekly}):
+                result = publish.publish_threads_latest()
+
+            save_pending.assert_called_once()
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["threads_id"], "thread123")
 
 
 if __name__ == "__main__":
