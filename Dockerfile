@@ -27,6 +27,10 @@ RUN playwright install chromium --with-deps
 COPY video/package*.json video/
 RUN cd video && npm install --prefer-offline
 
+# 安裝 Web server runtime 相依套件（Express + API SDK）
+COPY web/package*.json web/
+RUN cd web && npm install --omit=dev
+
 # 複製專案程式碼
 COPY . .
 

@@ -144,8 +144,7 @@ async function fetchThreadsStats() {
     ? `https://graph.threads.net/v1.0/${userId}`
     : `https://graph.threads.net/v1.0/me`;
 
-  // followers_count 需要 threads_manage_insights 權限；先只抓基本欄位
-  const url = `${endpoint}?fields=id,username,threads_count&access_token=${token}`;
+  const url = `${endpoint}?fields=id,username&access_token=${token}`;
   const res  = await fetch(url);
   const data = await res.json();
 
@@ -153,9 +152,20 @@ async function fetchThreadsStats() {
     throw new Error(data.error?.message || 'Threads API error');
   }
 
+  const [threadsRes, insightsRes] = await Promise.all([
+    fetch(`${endpoint}/threads?fields=id,timestamp&limit=25&access_token=${token}`),
+    fetch(`${endpoint}/threads_insights?metric=followers_count&access_token=${token}`),
+  ]);
+
+  const threadsData = await threadsRes.json();
+  const insightsData = await insightsRes.json();
+
+  const followersMetric = (insightsData.data || []).find(item => item.name === 'followers_count');
+
   return {
-    followers:  null,   // 需 threads_manage_insights 權限，目前不顯示
-    postCount:  data.threads_count,
+    followers:  followersMetric?.total_value?.value ?? null,
+    postCount:  Array.isArray(threadsData.data) ? threadsData.data.length : null,
     username:   data.username,
+    replyCount: null,
   };
 }

@@ -38,15 +38,18 @@ services:
 
   web:
     build:
-      context: ./web
+      context: .
       dockerfile: Dockerfile
+    command: ["node", "web/server.js"]
     env_file: .env
     ports:
       - "80:3000"
     volumes:
       # pipeline 每次執行後更新 data/images，web service 直接讀 volume
-      - ./web/public/data:/app/public/data
-      - ./web/public/images:/app/public/images
+      - ./data:/app/data
+      - ./web/public/data:/app/web/public/data
+      - ./web/public/images:/app/web/public/images
       # 渲染後的影片（供 Instagram 公開 URL）
-      - ./web/public/videos:/app/public/videos
+      - ./video/out:/app/video/out
+      - ./web/public/videos:/app/web/public/videos
     restart: unless-stopped   # 前端常駐，異常退出後自動重啟

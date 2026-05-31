@@ -394,7 +394,7 @@ def step_render_video(
 
 
 # ── Step 6.5：發布至 YouTube / Instagram ─────────────────────────────────────
-def step_publish_youtube(video_path: Path, data: dict) -> str | None:
+def step_publish_youtube(video_path: Path, data: dict, privacy: str = "public") -> str | None:
     """
     上傳 video_path 至 YouTube，回傳 video_id。
     """
@@ -418,7 +418,7 @@ def step_publish_youtube(video_path: Path, data: dict) -> str | None:
     ]
     description = "\n".join(desc_lines)
 
-    video_id = upload_to_youtube(video_path, title=title, description=description)
+    video_id = upload_to_youtube(video_path, title=title, description=description, privacy=privacy)
     if video_id:
         log.info("[OK] YouTube 影片：https://www.youtube.com/watch?v=%s", video_id)
     return video_id

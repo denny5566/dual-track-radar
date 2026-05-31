@@ -8,6 +8,8 @@ __pycache__/
 output/
 cache/
 data/radar.db
+video/out/
+web/public/videos/
 node_modules/
 video/node_modules/
 web/node_modules/
