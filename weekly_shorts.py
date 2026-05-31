@@ -292,23 +292,20 @@ def build_audio_segments(data: dict[str, Any]) -> list[dict[str, str]]:
     segments = [
         {
             "key": "opening",
-            "text": f"本週市場雷達。{storyline} 接下來用五個事件，把這條主線串起來。",
+            "text": f"本週市場雷達。用五個事件看懂這條主線：{storyline}",
         }
     ]
     for idx, event in enumerate(data.get("events", [])[:5], start=1):
+        title = str(event.get("title") or event.get("news_sentence") or "").strip()
+        variable = _first_market_variable(event)
+        watch_point = str(event.get("watch_point") or _event_watch_point(event, data)).strip()
         segments.append(
             {
                 "key": f"event_{idx:02d}",
-                "text": _event_segment_text(idx, event, data),
+                "text": f"第{idx}件：{title}。牽動{variable}。下週看：{watch_point}",
             }
         )
-    closing = " ".join(
-        [
-            str(data.get("weekly_summary") or ""),
-            format_calendar_line(data.get("next_week_events", [])),
-            CTA_TEXT,
-        ]
-    ).strip()
+    closing = " ".join([format_calendar_line(data.get("next_week_events", [])), CTA_TEXT, DISCLAIMER]).strip()
     segments.append({"key": "closing", "text": closing})
     return segments
 

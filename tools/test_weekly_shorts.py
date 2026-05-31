@@ -98,11 +98,11 @@ class WeeklyShortsTests(unittest.TestCase):
 
         self.assertEqual([s["key"] for s in segments], ["opening", "event_01", "event_02", "event_03", "event_04", "event_05", "closing"])
         self.assertIn("本週主線", segments[0]["text"])
-        self.assertIn("串起來", segments[0]["text"])
-        self.assertIn("事件是", segments[1]["text"])
-        self.assertIn("為什麼重要", segments[1]["text"])
-        self.assertIn("下週觀察", segments[1]["text"])
-        self.assertIn("接著", segments[2]["text"])
+        self.assertIn("五個事件", segments[0]["text"])
+        self.assertIn("第1件", segments[1]["text"])
+        self.assertIn("牽動", segments[1]["text"])
+        self.assertIn("下週看", segments[1]["text"])
+        self.assertLess(len(segments[1]["text"]), 120)
         self.assertIn("完整事件整理", segments[-1]["text"])
 
     def test_build_storyline_links_events_into_one_market_thread(self):
