@@ -1,8 +1,10 @@
 import React from "react";
 import { Composition } from "remotion";
 import { RadarVideo, type RadarVideoProps } from "./RadarVideo";
+import { WeeklyShorts } from "./WeeklyShorts";
 import sampleData from "./data/sample.json";
 import durationsRaw from "./data/durations.json";
+import weeklyDurationsRaw from "./data/weekly_durations.json";
 
 const FPS = 30;
 const BUFFER_FRAMES = 90; // 與 RadarVideo.tsx 保持一致（3 秒 buffer）
@@ -12,6 +14,7 @@ function toFrames(seconds: number): number {
 }
 
 const dur = durationsRaw as Record<string, number>;
+const weeklyDur = weeklyDurationsRaw as Record<string, number>;
 
 // 計算總 frames：opening + news_01~05 + insight + ending
 const totalFrames =
@@ -22,6 +25,18 @@ const totalFrames =
   ) +
   toFrames(dur.insight ?? 16) +
   toFrames(dur.ending ?? 6);
+
+function toWeeklyFrames(seconds: number): number {
+  return Math.max(120, Math.ceil(seconds * FPS) + 12);
+}
+
+const weeklyTotalFrames =
+  toWeeklyFrames(weeklyDur.opening ?? 3.2) +
+  [1, 2, 3, 4, 5].reduce(
+    (sum, i) => sum + toWeeklyFrames(weeklyDur[`event_0${i}`] ?? 7.4),
+    0
+  ) +
+  toWeeklyFrames(weeklyDur.closing ?? 10.5);
 
 export const RemotionRoot: React.FC = () => {
   const defaultProps: RadarVideoProps = { data: sampleData as RadarVideoProps["data"] };
@@ -49,6 +64,16 @@ export const RemotionRoot: React.FC = () => {
         width={1920}
         height={1080}
         defaultProps={defaultProps as unknown as Record<string, unknown>}
+      />
+
+      {/* 每週重大事件 Shorts（YouTube Shorts / unlisted demo）*/}
+      <Composition
+        id="WeeklyShorts"
+        component={WeeklyShorts}
+        durationInFrames={weeklyTotalFrames}
+        fps={FPS}
+        width={1080}
+        height={1920}
       />
     </>
   );

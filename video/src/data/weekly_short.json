@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "week_start": "2026-05-18",
+    "week_end": "2026-05-24",
+    "generated_at": "2026-05-25T00:00:00",
+    "platform": "youtube_shorts"
+  },
+  "events": [
+    {
+      "title": "Fed 降息預期降溫",
+      "news_sentence": "Fed 降息預期降溫，美債殖利率回升。",
+      "market_variable": "利率預期、美債殖利率、科技股估值",
+      "importance_reason": "此事件牽動利率預期、美債殖利率、科技股估值。",
+      "image_url": "news_01.jpg",
+      "image_query": "federal reserve financial market",
+      "image_source": "Pexels",
+      "sources": [
+        {
+          "name": "Market news",
+          "url": "",
+          "published_at": "2026-05-24"
+        }
+      ]
+    },
+    {
+      "title": "AI 晶片股延續波動",
+      "news_sentence": "AI 晶片股延續波動，市場重新評估成長預期。",
+      "market_variable": "AI 需求、半導體供應鏈、台股電子權值股",
+      "importance_reason": "此事件牽動 AI 需求、半導體供應鏈、台股電子權值股。",
+      "image_url": "news_03.jpg",
+      "image_query": "semiconductor chip technology",
+      "image_source": "Pexels",
+      "sources": [
+        {
+          "name": "Market news",
+          "url": "",
+          "published_at": "2026-05-24"
+        }
+      ]
+    },
+    {
+      "title": "能源價格牽動通膨預期",
+      "news_sentence": "能源價格再度成為市場焦點，通膨預期受到牽動。",
+      "market_variable": "能源價格、通膨預期、風險資產情緒",
+      "importance_reason": "此事件牽動能源價格、通膨預期、風險資產情緒。",
+      "image_url": "news_05.jpg",
+      "image_query": "oil energy market",
+      "image_source": "Pexels",
+      "sources": [
+        {
+          "name": "Market news",
+          "url": "",
+          "published_at": "2026-05-24"
+        }
+      ]
+    },
+    {
+      "title": "美元走勢牽動資金流向",
+      "news_sentence": "美元走勢再度牽動跨市場資金流向。",
+      "market_variable": "美元走勢、匯率壓力、外資風險偏好",
+      "importance_reason": "此事件牽動美元走勢、匯率壓力、外資風險偏好。",
+      "image_url": "news_02.jpg",
+      "image_query": "currency exchange trading",
+      "image_source": "Pexels",
+      "sources": [
+        {
+          "name": "Market news",
+          "url": "",
+          "published_at": "2026-05-24"
+        }
+      ]
+    },
+    {
+      "title": "亞洲市場關注貿易風險",
+      "news_sentence": "亞洲市場持續關注全球貿易與供應鏈風險。",
+      "market_variable": "地緣政治、供應鏈風險、亞洲股市情緒",
+      "importance_reason": "此事件牽動地緣政治、供應鏈風險、亞洲股市情緒。",
+      "image_url": "news_04.jpg",
+      "image_query": "global trade shipping",
+      "image_source": "Pexels",
+      "sources": [
+        {
+          "name": "Market news",
+          "url": "",
+          "published_at": "2026-05-24"
+        }
+      ]
+    }
+  ],
+  "next_week_events": [
+    {
+      "date": "2026-05-28",
+      "country": "United States",
+      "event": "FOMC Minutes",
+      "importance": "High"
+    }
+  ],
+  "calendar_line": "下週留意：FOMC。",
+  "weekly_summary": "本週市場主線集中在利率預期、AI 需求、能源價格、美元走勢與供應鏈風險，投資人更需要先理解脈絡，而不是追逐單一訊號。",
+  "cta": "完整事件整理與下週經濟日曆，放在說明欄。",
+  "narration": "本週市場雷達，五個事件牽動台股與美股。第一，Fed 降息預期降溫，美債殖利率回升。第二，AI 晶片股延續波動，市場重新評估成長預期。第三，能源價格再度成為市場焦點，通膨預期受到牽動。第四，美元走勢再度牽動跨市場資金流向。第五，亞洲市場持續關注全球貿易與供應鏈風險。本週市場主線集中在利率預期、AI 需求、能源價格、美元走勢與供應鏈風險，投資人更需要先理解脈絡，而不是追逐單一訊號。下週留意：FOMC。完整事件整理與下週經濟日曆，放在說明欄。"
+}

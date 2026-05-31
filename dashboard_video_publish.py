@@ -8,9 +8,9 @@ from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent
 WEB_DATA_DIR = BASE_DIR / "web" / "public" / "data"
-VIDEO_PATH = BASE_DIR / "video" / "out" / "video_horizontal.mp4"
+VIDEO_PATH = BASE_DIR / "video" / "out" / "weekly_short.mp4"
 RENDER_STATUS_PATH = BASE_DIR / "data" / "dashboard_video_render_status.json"
-PREVIEW_URL = "/generated-videos/video_horizontal.mp4"
+PREVIEW_URL = "/generated-videos/weekly_short.mp4"
 
 
 def _write_render_status(state: str, stage: str, percent: int, error: str = "") -> dict[str, Any]:
@@ -29,7 +29,7 @@ def _read_render_status() -> dict[str, Any]:
     if not RENDER_STATUS_PATH.exists():
         return {
             "state": "ready" if VIDEO_PATH.exists() else "idle",
-            "stage": "影片可預覽" if VIDEO_PATH.exists() else "尚未生成影片",
+            "stage": "影片與 Threads 草稿可預覽" if VIDEO_PATH.exists() else "尚未生成短影音",
             "percent": 100 if VIDEO_PATH.exists() else 0,
             "error": "",
         }
@@ -39,8 +39,16 @@ def _read_render_status() -> dict[str, Any]:
         return {"state": "unknown", "stage": "狀態讀取失敗", "percent": 0, "error": ""}
 
 
-def _date_key(report_date: str) -> str:
-    return report_date.replace("-", "")
+def _load_weekly_pending() -> dict[str, Any] | None:
+    import weekly_shorts
+
+    return weekly_shorts.load_pending_weekly_short()
+
+
+def _build_threads_text(data: dict[str, Any]) -> str:
+    import weekly_shorts
+
+    return weekly_shorts.build_threads_post_text(data)
 
 
 def load_latest_report() -> dict[str, Any] | None:
@@ -56,32 +64,67 @@ def load_latest_report() -> dict[str, Any] | None:
     return None
 
 
-def _video_title(data: dict[str, Any], date_str: str) -> str:
-    raw_title = (data.get("outputs") or {}).get("edm_subject", "")
-    clean = raw_title[raw_title.find("】") + 1:].strip() if "】" in raw_title else raw_title
-    return (data.get("article") or {}).get("title") or clean or date_str
+def _weekly_title(data: dict[str, Any]) -> str:
+    meta = data.get("meta") or {}
+    week_end = meta.get("week_end") or ""
+    return f"本週市場雷達 Shorts{f'｜{week_end}' if week_end else ''}"
 
 
 def get_status() -> dict[str, Any]:
-    data = load_latest_report()
-    if not data:
+    render = _read_render_status()
+    pending = _load_weekly_pending()
+    video_exists = VIDEO_PATH.exists()
+
+    if pending:
+        data = pending.get("data") or {}
+        video_path = Path(pending.get("video_path") or VIDEO_PATH)
+        video_exists = video_path.exists()
+        youtube_video_id = data.get("youtube_video_id") or pending.get("youtube_video_id") or ""
+        threads_id = data.get("threads_id") or pending.get("threads_id") or ""
+
+        if render.get("state") == "rendering":
+            state = "rendering"
+        elif not video_exists:
+            state = "missing_video"
+        elif youtube_video_id and threads_id:
+            state = "published"
+        else:
+            state = "ready"
+
+        return {
+            "state": state,
+            "date": data.get("meta", {}).get("week_end", ""),
+            "title": _weekly_title(data),
+            "published": bool(youtube_video_id and threads_id),
+            "youtube_published": bool(youtube_video_id),
+            "threads_published": bool(threads_id),
+            "youtube_video_id": youtube_video_id,
+            "youtube_url": f"https://www.youtube.com/watch?v={youtube_video_id}" if youtube_video_id else "",
+            "threads_id": threads_id,
+            "threads_text": _build_threads_text(data),
+            "video_exists": video_exists,
+            "video_path": str(video_path),
+            "preview_url": PREVIEW_URL if video_exists else "",
+            "render": render,
+        }
+
+    latest_report = load_latest_report()
+    if not latest_report:
         return {
             "state": "no_report",
             "published": False,
-            "video_exists": VIDEO_PATH.exists(),
+            "youtube_published": False,
+            "threads_published": False,
+            "threads_text": "",
+            "video_exists": video_exists,
             "video_path": str(VIDEO_PATH),
+            "preview_url": PREVIEW_URL if video_exists else "",
+            "render": render,
         }
 
-    date_str = data.get("meta", {}).get("date", "")
-    youtube_video_id = data.get("youtube_video_id") or ""
-    video_exists = VIDEO_PATH.exists()
-
-    render = _read_render_status()
-
+    date_str = latest_report.get("meta", {}).get("date", "")
     if render.get("state") == "rendering":
         state = "rendering"
-    elif youtube_video_id:
-        state = "published"
     elif video_exists:
         state = "ready"
     else:
@@ -90,10 +133,14 @@ def get_status() -> dict[str, Any]:
     return {
         "state": state,
         "date": date_str,
-        "title": _video_title(data, date_str),
-        "published": bool(youtube_video_id),
-        "youtube_video_id": youtube_video_id,
-        "youtube_url": f"https://www.youtube.com/watch?v={youtube_video_id}" if youtube_video_id else "",
+        "title": "本週市場雷達 Shorts",
+        "published": False,
+        "youtube_published": False,
+        "threads_published": False,
+        "youtube_video_id": "",
+        "youtube_url": "",
+        "threads_id": "",
+        "threads_text": "",
         "video_exists": video_exists,
         "video_path": str(VIDEO_PATH),
         "preview_url": PREVIEW_URL if video_exists else "",
@@ -102,42 +149,22 @@ def get_status() -> dict[str, Any]:
 
 
 def render_latest() -> dict[str, Any]:
-    data = load_latest_report()
-    if not data:
-        render = _write_render_status("failed", "找不到最新報告", 0, "找不到最新報告")
-        return {"ok": False, "state": "no_report", "render": render, "error": "找不到最新報告"}
+    _write_render_status("rendering", "抓取市場新聞與經濟日曆", 10)
+    _write_render_status("rendering", "整理 5 個重大事件", 30)
+    _write_render_status("rendering", "產生 Threads 文章草稿", 45)
+    _write_render_status("rendering", "生成旁白與短影音素材", 65)
+    _write_render_status("rendering", "Remotion 渲染 YouTube Shorts", 85)
 
-    _write_render_status("rendering", "準備報告資料", 10)
-    _write_render_status("rendering", "生成旁白音檔", 30)
-    _write_render_status("rendering", "生成影片圖片素材", 50)
-    _write_render_status("rendering", "Remotion 渲染影片", 80)
+    import weekly_shorts
 
-    import main
-
-    video_paths = main.step_render_video(
-        data,
-        render_horizontal=True,
-        render_vertical=False,
-    )
-    h_path = video_paths.get("horizontal")
-    if not h_path or not Path(h_path).exists():
-        render = _write_render_status("failed", "影片生成失敗", 80, "Remotion 未產出橫式影片")
+    payload = weekly_shorts.run_weekly_draft()
+    video_path = Path(payload.get("video_path") or VIDEO_PATH)
+    if not video_path.exists():
+        render = _write_render_status("failed", "影片生成失敗", 85, "Remotion 未產出 weekly_short.mp4")
         return {"ok": False, **get_status(), "state": "render_failed", "render": render, "error": render["error"]}
 
-    render = _write_render_status("ready", "影片可預覽", 100)
+    render = _write_render_status("ready", "影片與 Threads 草稿可預覽", 100)
     return {"ok": True, **get_status(), "state": "ready", "render": render, "preview_url": PREVIEW_URL}
-
-
-def publish_youtube_unlisted(data: dict[str, Any]) -> str | None:
-    import main
-
-    return main.step_publish_youtube(VIDEO_PATH, data, privacy="unlisted")
-
-
-def save_report_outputs(data: dict[str, Any]) -> None:
-    import main
-
-    main.step_save_db(data)
 
 
 def update_videos_json(data: dict[str, Any], youtube_video_id: str) -> None:
@@ -145,11 +172,11 @@ def update_videos_json(data: dict[str, Any], youtube_video_id: str) -> None:
     videos_path = WEB_DATA_DIR / "videos.json"
     payload = json.loads(videos_path.read_text(encoding="utf-8")) if videos_path.exists() else {"videos": []}
 
-    date_str = data.get("meta", {}).get("date", "")
+    date_str = data.get("meta", {}).get("week_end", "")
     entry = {
         "video_id": youtube_video_id,
         "date": date_str,
-        "title": _video_title(data, date_str),
+        "title": _weekly_title(data),
     }
     existing = payload.get("videos") or []
     payload["videos"] = [
@@ -160,24 +187,55 @@ def update_videos_json(data: dict[str, Any], youtube_video_id: str) -> None:
     videos_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _save_pending(data: dict[str, Any], video_path: Path) -> None:
+    import weekly_shorts
+
+    weekly_shorts.save_pending_weekly_short({"data": data, "video_path": video_path})
+
+
 def publish_latest() -> dict[str, Any]:
-    data = load_latest_report()
-    if not data:
-        return {"ok": False, "state": "no_report", "error": "找不到最新報告"}
+    import weekly_shorts
 
-    status = get_status()
-    if status["state"] == "published":
-        return {"ok": True, **status, "state": "already_published"}
-    if not VIDEO_PATH.exists():
-        return {"ok": False, **status, "error": "找不到橫式影片，請先產生 video/out/video_horizontal.mp4"}
+    pending = _load_weekly_pending()
+    if not pending:
+        return {"ok": False, **get_status(), "state": "no_draft", "error": "請先生成短影音與 Threads 草稿"}
 
-    youtube_video_id = publish_youtube_unlisted(data)
+    data = pending.get("data") or {}
+    video_path = Path(pending.get("video_path") or VIDEO_PATH)
+    if data.get("youtube_video_id"):
+        return {"ok": True, **get_status(), "state": "already_published"}
+    if not video_path.exists():
+        return {"ok": False, **get_status(), "state": "missing_video", "error": "找不到 YouTube Shorts 影片，請先生成"}
+
+    youtube_video_id = weekly_shorts.publish_weekly_youtube(video_path, data)
     if not youtube_video_id:
-        return {"ok": False, **get_status(), "state": "failed", "error": "YouTube 上傳失敗，請查看 video_publish_jobs 或 VM log"}
+        return {"ok": False, **get_status(), "state": "failed", "error": "YouTube 上傳失敗，請查看 VM log"}
 
     data["youtube_video_id"] = youtube_video_id
-    save_report_outputs(data)
+    _save_pending(data, video_path)
     update_videos_json(data, youtube_video_id)
+
+    return {"ok": True, **get_status(), "state": "published"}
+
+
+def publish_threads_latest() -> dict[str, Any]:
+    import weekly_shorts
+
+    pending = _load_weekly_pending()
+    if not pending:
+        return {"ok": False, **get_status(), "state": "no_draft", "error": "請先生成 Threads 草稿"}
+
+    data = pending.get("data") or {}
+    video_path = Path(pending.get("video_path") or VIDEO_PATH)
+    if data.get("threads_id"):
+        return {"ok": True, **get_status(), "state": "already_published"}
+
+    threads_id = weekly_shorts.publish_weekly_threads(data)
+    if not threads_id:
+        return {"ok": False, **get_status(), "state": "failed", "error": "Threads 發布失敗，請查看 VM log"}
+
+    data["threads_id"] = threads_id
+    _save_pending(data, video_path)
 
     return {"ok": True, **get_status(), "state": "published"}
 
@@ -190,12 +248,16 @@ def _run_cli(action: str) -> int:
             result = render_latest()
         elif action == "publish-youtube":
             result = publish_latest()
+        elif action == "publish-threads":
+            result = publish_threads_latest()
         else:
             result = {"ok": False, "state": "bad_action", "error": f"unknown action: {action}"}
     except Exception as exc:
+        render = _write_render_status("failed", "流程執行失敗", 0, str(exc)) if action == "render-youtube" else _read_render_status()
         result = {
             "ok": False,
             "state": "error",
+            "render": render,
             "error": str(exc),
             "traceback": traceback.format_exc(),
         }
@@ -205,8 +267,8 @@ def _run_cli(action: str) -> int:
 
 
 def main_cli() -> int:
-    parser = argparse.ArgumentParser(description="Dashboard YouTube publish helper")
-    parser.add_argument("action", choices=["status", "render-youtube", "publish-youtube"])
+    parser = argparse.ArgumentParser(description="Dashboard weekly shorts publish helper")
+    parser.add_argument("action", choices=["status", "render-youtube", "publish-youtube", "publish-threads"])
     args = parser.parse_args()
     return _run_cli(args.action)
 

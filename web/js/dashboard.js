@@ -163,13 +163,14 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// ── YouTube 發布控制 ────────────────────────────────────────────────────────
+// ── 短影音 / Threads 發布控制 ──────────────────────────────────────────────
 function renderPublishStatus(data) {
   const statusEl = document.getElementById('publish-status');
   const titleEl = document.getElementById('publish-title');
   const detailEl = document.getElementById('publish-detail');
   const renderBtn = document.getElementById('render-youtube-btn');
   const btn = document.getElementById('publish-youtube-btn');
+  const threadsBtn = document.getElementById('publish-threads-btn');
   const link = document.getElementById('publish-link');
   const msg = document.getElementById('publish-message');
   const progress = document.getElementById('render-progress');
@@ -178,15 +179,22 @@ function renderPublishStatus(data) {
   const bar = document.getElementById('render-bar');
   const previewWrap = document.getElementById('video-preview-wrap');
   const preview = document.getElementById('video-preview');
+  const threadsPreviewWrap = document.getElementById('threads-preview-wrap');
+  const threadsText = document.getElementById('threads-text-preview');
+  const threadsState = document.getElementById('threads-publish-state');
   const render = data.render || {};
   const renderPercent = Math.max(0, Math.min(100, Number(render.percent || 0)));
 
   titleEl.textContent = data.title || data.date || '—';
-  detailEl.textContent = data.date ? `${data.date} · ${data.video_exists ? '影片已就緒，可預覽' : '尚未生成橫式影片'}` : '尚無報告';
-  renderBtn.disabled = data.state === 'rendering' || data.state === 'published' || data.state === 'already_published' || data.state === 'no_report';
-  renderBtn.textContent = data.state === 'rendering' ? '生成中…' : (data.video_exists ? '重新生成' : '生成影片');
-  btn.disabled = data.state !== 'ready';
-  btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> 發布 YouTube';
+  detailEl.textContent = data.date ? `${data.date} · ${data.video_exists ? 'Shorts 已就緒，可預覽' : '尚未生成 Shorts 草稿'}` : '尚無報告';
+  renderBtn.disabled = data.state === 'rendering' || data.state === 'no_report';
+  renderBtn.textContent = data.state === 'rendering' ? '生成中...' : (data.video_exists || data.threads_text ? '重新生成草稿' : '生成草稿');
+  btn.disabled = data.state !== 'ready' || data.youtube_published;
+  btn.innerHTML = data.youtube_published
+    ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> YouTube 已發布'
+    : '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> 發布 YouTube Shorts';
+  threadsBtn.disabled = data.state !== 'ready' || !data.threads_text || data.threads_published;
+  threadsBtn.textContent = data.threads_published ? 'Threads 已發布' : '發布 Threads';
 
   link.hidden = !data.youtube_url;
   if (data.youtube_url) link.href = data.youtube_url;
@@ -205,12 +213,20 @@ function renderPublishStatus(data) {
     if (!preview.src.endsWith(nextSrc)) preview.src = nextSrc;
   }
 
+  threadsPreviewWrap.hidden = !data.threads_text;
+  threadsText.value = data.threads_text || '';
+  threadsState.textContent = data.threads_published
+    ? `已發布${data.threads_id ? ` · ${data.threads_id}` : ''}`
+    : '尚未發布';
+
   if (data.state === 'rendering') {
     setStatus(statusEl, '生成中');
     btn.disabled = true;
+    threadsBtn.disabled = true;
   } else if (data.state === 'published' || data.state === 'already_published') {
     setStatus(statusEl, '已發布', 'live');
-    btn.disabled = true;
+    btn.disabled = Boolean(data.youtube_published);
+    threadsBtn.disabled = Boolean(data.threads_published);
   } else if (data.state === 'ready') {
     setStatus(statusEl, '可預覽');
   } else if (data.state === 'missing_video') {
@@ -243,10 +259,11 @@ async function loadPublishStatus() {
 function initPublishControl() {
   const renderBtn = document.getElementById('render-youtube-btn');
   const btn = document.getElementById('publish-youtube-btn');
+  const threadsBtn = document.getElementById('publish-threads-btn');
   renderBtn.addEventListener('click', async () => {
     renderPublishStatus({
       state: 'rendering',
-      render: { state: 'rendering', stage: '準備報告資料', percent: 10 },
+      render: { state: 'rendering', stage: '抓取市場新聞與經濟日曆', percent: 10 },
     });
     try {
       await fetch('/api/video-publish/render', { method: 'POST' });
@@ -258,7 +275,7 @@ function initPublishControl() {
 
   btn.addEventListener('click', async () => {
     btn.disabled = true;
-    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> 發布中…';
+    btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> 發布中...';
     document.getElementById('publish-message').hidden = true;
     setStatus(document.getElementById('publish-status'), '發布中');
 
@@ -271,6 +288,24 @@ function initPublishControl() {
       }
     } catch (err) {
       renderPublishStatus({ state: 'error', error: `發布失敗：${err.message}` });
+    }
+  });
+
+  threadsBtn.addEventListener('click', async () => {
+    threadsBtn.disabled = true;
+    threadsBtn.textContent = '發布中...';
+    document.getElementById('publish-message').hidden = true;
+    setStatus(document.getElementById('publish-status'), '發布中');
+
+    try {
+      const res = await fetch('/api/video-publish/threads', { method: 'POST' });
+      const data = await res.json();
+      renderPublishStatus(data);
+      if (res.ok) {
+        await loadThreadsStats();
+      }
+    } catch (err) {
+      renderPublishStatus({ state: 'error', error: `Threads 發布失敗：${err.message}` });
     }
   });
 }

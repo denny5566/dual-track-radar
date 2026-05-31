@@ -1,5 +1,5 @@
 /**
- * VM-only dashboard endpoint for YouTube video publishing.
+ * VM-only dashboard endpoint for weekly Shorts and Threads publishing.
  * Calls the Python helper because the VM owns the video files, SQLite DB, and OAuth env.
  */
 
@@ -20,7 +20,7 @@ function runHelper(action) {
       {
         cwd: ROOT_DIR,
         env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
-        timeout: action === 'publish-youtube' ? 15 * 60 * 1000 : 30 * 1000,
+        timeout: action === 'publish-youtube' || action === 'publish-threads' ? 15 * 60 * 1000 : 30 * 1000,
         maxBuffer: 1024 * 1024,
       },
       (error, stdout, stderr) => {
@@ -76,8 +76,13 @@ export default async function handler(req, res) {
     return res.status(202).json({
       ok: true,
       state: 'rendering',
-      render: { state: 'rendering', stage: '準備報告資料', percent: 10, error: '' },
+      render: { state: 'rendering', stage: '抓取市場新聞與經濟日曆', percent: 10, error: '' },
     });
+  }
+
+  if (req.method === 'POST' && action === 'threads') {
+    const result = await runHelper('publish-threads');
+    return res.status(result.ok ? 200 : 400).json(result);
   }
 
   if (req.method === 'POST') {
