@@ -424,6 +424,25 @@ def fetch_economic_calendar(start: date, end: date) -> list[dict[str, Any]]:
     return items
 
 
+def _daily_report_items(data: dict[str, Any]) -> list[dict[str, Any]]:
+    date_str = str(data.get("meta", {}).get("date", ""))
+    items: list[dict[str, Any]] = []
+    for item in data.get("top5_news", []):
+        title = item.get("headline") or item.get("title")
+        if not title:
+            continue
+        items.append(
+            {
+                "title": title,
+                "description": item.get("summary", ""),
+                "source": "財經雷達每日報告",
+                "url": "",
+                "published_at": date_str,
+            }
+        )
+    return items
+
+
 def load_recent_daily_news(limit_files: int = 5) -> list[dict[str, Any]]:
     analysis_dir = BASE_DIR / "output" / "analysis"
     items: list[dict[str, Any]] = []
@@ -432,19 +451,32 @@ def load_recent_daily_news(limit_files: int = 5) -> list[dict[str, Any]]:
             data = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        for item in data.get("top5_news", []):
-            title = item.get("headline") or item.get("title")
-            if not title:
-                continue
-            items.append(
-                {
-                    "title": title,
-                    "description": item.get("summary", ""),
-                    "source": "雙軌頻道分析",
-                    "url": "",
-                    "published_at": data.get("meta", {}).get("date", ""),
-                }
-            )
+        items.extend(_daily_report_items(data))
+
+    web_data_dir = BASE_DIR / "web" / "public" / "data"
+    candidate_paths: list[Path] = []
+    latest_path = web_data_dir / "latest.json"
+    if latest_path.exists():
+        candidate_paths.append(latest_path)
+    index_path = web_data_dir / "index.json"
+    if index_path.exists():
+        try:
+            index_data = json.loads(index_path.read_text(encoding="utf-8"))
+            articles = index_data.get("articles") if isinstance(index_data, dict) else index_data
+            for article in (articles or [])[:limit_files]:
+                date_key = str(article.get("date") or "").replace("-", "")
+                path = web_data_dir / f"{date_key}.json"
+                if path.exists():
+                    candidate_paths.append(path)
+        except Exception:
+            pass
+
+    for path in candidate_paths[:limit_files + 1]:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        items.extend(_daily_report_items(data))
     return items
 
 

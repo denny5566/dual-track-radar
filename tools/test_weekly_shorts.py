@@ -12,6 +12,7 @@ from weekly_shorts import (
     dedupe_news_items,
     fallback_select_events,
     format_calendar_line,
+    load_recent_daily_news,
     run_weekly_auto_publish,
 )
 
@@ -154,6 +155,32 @@ class WeeklyShortsTests(unittest.TestCase):
         self.assertGreaterEqual(len(data["events"]), 5)
         self.assertIn("narration", data)
         self.assertIn("下週留意", data["calendar_line"])
+
+    def test_load_recent_daily_news_reads_web_public_reports(self):
+        report = {
+            "meta": {"date": "2026-05-29"},
+            "top5_news": [
+                {"headline": "台股躍升全球第五大股市", "summary": "資金流向股市但融資滿水位。"}
+            ],
+        }
+
+        with patch("weekly_shorts.BASE_DIR") as base_dir:
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                base_dir.__truediv__.side_effect = lambda other: root / other
+                data_dir = root / "web" / "public" / "data"
+                data_dir.mkdir(parents=True)
+                (data_dir / "latest.json").write_text(
+                    __import__("json").dumps(report, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+
+                items = load_recent_daily_news()
+
+        self.assertEqual(items[0]["title"], "台股躍升全球第五大股市")
+        self.assertEqual(items[0]["source"], "財經雷達每日報告")
 
     def test_run_weekly_auto_publish_generates_video_and_publishes_both_platforms(self):
         data = {
